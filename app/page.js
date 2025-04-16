@@ -7,6 +7,7 @@ import PromptInput from "./components/PromptInput";
 import ParameterConfig from "./components/ParameterConfig";
 import ResponsePane from "./components/ResponsePane";
 import AnalysisPanel from "./components/AnalysisPanel";
+import SettingsButton from "./components/SettingsButton";
 import { callSonnet, callGemini, callChatGPT, analyzeResponses } from "./lib/models";
 import { DEFAULT_ANALYSIS_INSTRUCTIONS } from "./utils/system-instructions";
 import { saveAsReadme } from "./utils/readme";
