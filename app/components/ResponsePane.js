@@ -4,10 +4,12 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
+import remarkGfm from "remark-gfm";
 
 export default function ResponsePane({ response, isLoading, onSaveReadme }) {
   const [showRaw, setShowRaw] = useState(false);
-  
+
   if (isLoading) {
     return (
       <div className="card bg-base-100 shadow-sm min-h-[300px] flex items-center justify-center">
@@ -18,7 +20,7 @@ export default function ResponsePane({ response, isLoading, onSaveReadme }) {
       </div>
     );
   }
-  
+
   if (!response) {
     return (
       <div className="card bg-base-100 shadow-sm min-h-[300px] flex items-center justify-center">
@@ -28,7 +30,7 @@ export default function ResponsePane({ response, isLoading, onSaveReadme }) {
       </div>
     );
   }
-  
+
   return (
     <div className="card bg-base-100 shadow-sm overflow-hidden">
       <div className="card-body p-0">
@@ -51,7 +53,7 @@ export default function ResponsePane({ response, isLoading, onSaveReadme }) {
             </button>
           </div>
         </div>
-        
+
         <div className="p-4 max-h-[600px] overflow-auto">
           {response.error ? (
             <div className="text-error">{response.text}</div>
@@ -59,16 +61,32 @@ export default function ResponsePane({ response, isLoading, onSaveReadme }) {
             <pre className="text-sm whitespace-pre-wrap font-mono bg-base-200 p-4 rounded-md overflow-x-auto">{JSON.stringify(response.rawResponse, null, 2)}</pre>
           ) : (
             <div className="prose prose-sm md:prose-base max-w-none">
-              <ReactMarkdown 
-                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]} // Add this for table support
+                rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeSlug]}
                 components={{
                   pre: ({ node, ...props }) => (
                     <pre className="bg-base-200 p-4 rounded-md overflow-x-auto" {...props} />
                   ),
                   code: ({ node, inline, ...props }) => (
-                    inline ? 
-                    <code className="bg-base-200 px-1 py-0.5 rounded" {...props} /> :
-                    <code {...props} />
+                    inline ?
+                      <code className="bg-base-200 px-1 py-0.5 rounded" {...props} /> :
+                      <code {...props} />
+                  ),
+                  // Add specific styling for tables
+                  table: ({ node, ...props }) => (
+                    <div className="overflow-x-auto my-4">
+                      <table className="table table-zebra w-full" {...props} />
+                    </div>
+                  ),
+                  thead: ({ node, ...props }) => (
+                    <thead className="bg-base-200" {...props} />
+                  ),
+                  th: ({ node, ...props }) => (
+                    <th className="px-4 py-2 text-left" {...props} />
+                  ),
+                  td: ({ node, ...props }) => (
+                    <td className="border px-4 py-2" {...props} />
                   )
                 }}
               >
