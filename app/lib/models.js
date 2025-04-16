@@ -235,6 +235,7 @@ export async function analyzeResponses(
       - Provide a summary of the differences between the models
       - Provide a summary of the strengths and weaknesses of each model
       - Provide a summary of the overall performance of each model
+      - Break each section into markdown sections with headers, use lists, and formatting
 
       ${responses.map(r => `${r.model}: ${r.text}`).join('\n\n')}
     `;

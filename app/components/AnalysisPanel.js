@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Markdown from "react-markdown";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 
 export default function AnalysisPanel({ 
   responses, 
@@ -11,7 +13,8 @@ export default function AnalysisPanel({
   isAnalyzing,
   modelConfigs,
   selectedVersions,
-  onVersionChange
+  onVersionChange,
+  onSaveReadme
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedAnalyzer, setSelectedAnalyzer] = useState(analyzerModels[0] || "ChatGPT");
@@ -33,27 +36,27 @@ export default function AnalysisPanel({
   const versions = modelConfigs[modelId]?.versions || [];
   
   return (
-    <div className="border border-black/10 dark:border-white/10 rounded-lg overflow-hidden bg-white dark:bg-black/20">
+    <div className="card bg-base-100 shadow-sm overflow-hidden">
       <div 
-        className="bg-black/10 dark:bg-white/10 p-3 flex items-center justify-between cursor-pointer"
+        className="bg-base-200 p-3 flex items-center justify-between cursor-pointer"
         onClick={() => responses.length > 0 && setIsOpen(!isOpen)}
       >
         <h3 className="font-medium">Response Analysis</h3>
         {responses.length > 0 && (
-          <button className="text-sm">
-            {isOpen ? "▲ Hide" : "▼ Show"}
+          <button className="btn btn-sm btn-ghost btn-circle">
+            {isOpen ? "▲" : "▼"}
           </button>
         )}
       </div>
       
       {isOpen && (
-        <div className="p-4">
+        <div className="card-body">
           <div className="mb-4 flex flex-col sm:flex-row gap-3">
             <div className="flex flex-col sm:flex-row gap-2">
               <select 
                 value={selectedAnalyzer} 
                 onChange={(e) => setSelectedAnalyzer(e.target.value)}
-                className="p-2 rounded border border-black/10 dark:border-white/10 bg-background"
+                className="select select-bordered select-sm"
               >
                 {analyzerModels.map(model => (
                   <option key={model} value={model}>{model}</option>
@@ -63,7 +66,7 @@ export default function AnalysisPanel({
               <select
                 value={selectedVersions[selectedAnalyzer] || modelConfigs[modelId].defaultVersion}
                 onChange={(e) => onVersionChange(selectedAnalyzer, e.target.value)}
-                className="p-2 rounded border border-black/10 dark:border-white/10 bg-background"
+                className="select select-bordered select-sm"
               >
                 {versions.map(version => (
                   <option key={version.id} value={version.id}>
@@ -73,21 +76,53 @@ export default function AnalysisPanel({
               </select>
             </div>
             
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || responses.length < 2}
-              className="py-2 px-4 bg-foreground text-background rounded hover:bg-foreground/90 disabled:opacity-50"
-            >
-              {isAnalyzing ? "Analyzing..." : "Analyze Responses"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing || responses.length < 2}
+                className="btn btn-sm btn-primary"
+              >
+                {isAnalyzing ? 
+                  <>
+                    <span className="loading loading-spinner loading-xs"></span>
+                    Analyzing...
+                  </> : 
+                  "Analyze Responses"
+                }
+              </button>
+              
+              {analysis && (
+                <button
+                  onClick={() => onSaveReadme(analysis)}
+                  disabled={isAnalyzing}
+                  className="btn btn-sm btn-secondary"
+                >
+                  Save as README
+                </button>
+              )}
+            </div>
           </div>
           
           {analysis ? (
-            <div className="prose dark:prose-invert prose-pre:bg-black/5 dark:prose-pre:bg-white/5 prose-pre:text-sm prose-pre:p-4 prose-pre:rounded-md prose-pre:overflow-x-auto prose-headings:mt-6 prose-headings:mb-4 prose-p:my-4 prose-li:my-1 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:before:content-none prose-code:after:content-none max-w-none">
-              <Markdown>{analysis.text}</Markdown>
+            <div className="prose prose-sm md:prose-base max-w-none">
+              <ReactMarkdown 
+                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                components={{
+                  pre: ({ node, ...props }) => (
+                    <pre className="bg-base-200 p-4 rounded-md overflow-x-auto" {...props} />
+                  ),
+                  code: ({ node, inline, ...props }) => (
+                    inline ? 
+                    <code className="bg-base-200 px-1 py-0.5 rounded" {...props} /> :
+                    <code {...props} />
+                  )
+                }}
+              >
+                {analysis.text}
+              </ReactMarkdown>
             </div>
           ) : (
-            <div className="text-center p-8 text-foreground/60">
+            <div className="text-center p-8 opacity-60">
               {responses.length < 2 ? (
                 "Need at least two model responses to analyze."
               ) : (

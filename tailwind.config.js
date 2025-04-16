@@ -1,4 +1,4 @@
-tester/tailwind.config.js
+-comparison-tool/tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -12,7 +12,7 @@ module.exports = {
           css: {
             maxWidth: 'none',
             code: {
-              backgroundColor: 'var(--tw-prose-pre-bg)',
+              backgroundColor: 'hsl(var(--base-200) / 1)',
               borderRadius: '0.25rem',
               paddingTop: '0.125rem',
               paddingBottom: '0.125rem',
@@ -26,22 +26,10 @@ module.exports = {
               content: 'none',
             },
             pre: {
-              backgroundColor: 'var(--tw-prose-pre-bg)',
+              backgroundColor: 'hsl(var(--base-200) / 1)',
               borderRadius: '0.375rem',
               padding: '1rem',
               overflowX: 'auto',
-            },
-            table: {
-              width: '100%',
-              borderCollapse: 'collapse',
-            },
-            'thead th': {
-              borderBottom: '1px solid var(--tw-prose-th-borders)',
-              paddingBottom: '0.5rem',
-            },
-            'tbody td, tfoot td': {
-              padding: '0.5rem',
-              borderBottom: '1px solid var(--tw-prose-td-borders)',
             },
           },
         },
@@ -50,5 +38,14 @@ module.exports = {
   },
   plugins: [
     require('@tailwindcss/typography'),
+    require('daisyui'),
   ],
+  daisyui: {
+    themes: true, // This enables all themes
+    darkTheme: "dark",
+    base: true,
+    styled: true,
+    utils: true,
+    logs: false,
+  }
 }
