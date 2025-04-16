@@ -12,7 +12,7 @@ import { callSonnet, callGemini, callChatGPT, analyzeResponses } from "./lib/mod
 import { DEFAULT_ANALYSIS_INSTRUCTIONS } from "./utils/system-instructions";
 import { saveAsReadme } from "./utils/readme";
 import { syncCredentials } from "./utils/credentials";
-import InfoBubble from './InfoBubble';
+import InfoBubble from './components/InfoBubble';
 
 // Model configuration with available versions
 const MODEL_CONFIGS = {
@@ -219,8 +219,71 @@ export default function Home() {
           <h1 className="text-2xl font-bold">LLM Comparison Tool</h1>
         </div>
         <InfoBubble
-          title="About Response Analysis"
-          content="Analyze responses from different models to understand their strengths, weaknesses, and differences. Select an analyzer model and click 'Analyze Responses' to get a detailed comparison."
+          title="Setup & Usage Instructions"
+          content={`
+# **Prerequisites**
+
+- Node.js 18.x or later
+- API keys for OpenAI, Anthropic, and Google Cloud (for Vertex AI)
+
+## **API Keys Required**
+
+| Variable | Description |
+|----------|-------------|
+| \`ANTHROPIC_API_KEY\` | API key for Anthropic Claude models |
+| \`OPENAI_API_KEY\` | API key for OpenAI GPT models |
+| \`GOOGLE_PROJECT_ID\` | Google Cloud project ID for Vertex AI |
+
+## **Google Cloud Setup**
+
+When using Google Models (Gemini), you need:
+
+1. A Google Cloud Project with Vertex AI API enabled
+2. Local Google Cloud CLI installed
+3. Proper authentication
+
+Run this command to authenticate:
+
+\`\`\`bash
+gcloud auth application-default login
+\`\`\`
+
+## **Setting Up LLM Connectivity Configurations For Local Testing**
+
+### **.env File**
+
+Create or edit the \`.env\` file in the root directory, or :
+
+\`\`\`
+GOOGLE_PROJECT_ID="your-google-project-id"
+OPENAI_API_KEY="your-openai-api-key"
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+\`\`\`
+
+### **In App Settings**
+
+When running in local development mode, you can also set the API Keys and Google Project settings in the app settings. This is useful for testing without modifying the \`.env\` file.
+1. Open the app settings by clicking "LLM Connectivity Settings" in the top-right corner
+2. Enter your API keys and Google Project ID
+3. Click "Save Settings" to apply the settings
+
+
+## **How to Use This Tool**
+
+1. **Select Models**: Choose which models to test from the selector panel
+2. **Configure Parameters**: Adjust temperature (creativity) and token length
+3. **Enter Prompt**: Type your prompt and optional system instructions
+4. **Test Models**: Click "Test Selected Models" to get responses
+5. **View & Compare**: Results appear in the right panel
+6. **Analyze**: Use the Analysis panel to compare model outputs
+
+## **Analysis Features**
+
+- Choose any model to analyze the differences between responses
+- Customize analysis instructions for specific comparisons
+- Save responses and analyses as markdown files
+- Toggle between formatted and raw views
+`}
         />
         <div className="flex-none">
           <SettingsButton />
