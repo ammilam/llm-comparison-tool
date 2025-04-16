@@ -8,6 +8,7 @@ import ParameterConfig from "./components/ParameterConfig";
 import ResponsePane from "./components/ResponsePane";
 import AnalysisPanel from "./components/AnalysisPanel";
 import { callSonnet, callGemini, callChatGPT, analyzeResponses } from "./lib/models";
+import { DEFAULT_ANALYSIS_INSTRUCTIONS } from "./utils/system-instructions";
 import { saveAsReadme } from "./utils/readme";
 
 // Model configuration with available versions
@@ -63,6 +64,7 @@ const AVAILABLE_MODELS = [
 
 export default function Home() {
   // Model selection state
+  const [analysisInstructions, setAnalysisInstructions] = useState(DEFAULT_ANALYSIS_INSTRUCTIONS);
   const [selectedModels, setSelectedModels] = useState([AVAILABLE_MODELS[0]]);
   const [selectedVersions, setSelectedVersions] = useState({
     claude: MODEL_CONFIGS.claude.defaultVersion,
@@ -70,6 +72,7 @@ export default function Home() {
     chatgpt: MODEL_CONFIGS.chatgpt.defaultVersion,
   });
 
+  
   // Theme state
   const [currentTheme, setCurrentTheme] = useState('light');
   const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
@@ -182,7 +185,7 @@ export default function Home() {
     }
   };
 
-  const handleAnalyze = async (analyzerModel) => {
+  const handleAnalyze = async (analyzerModel, customInstructions) => {
     if (responses.length < 2) return;
 
     setIsAnalyzing(true);
@@ -198,7 +201,7 @@ export default function Home() {
       const modelId = modelIdMap[analyzerModel];
       const versionId = selectedAnalyzerVersions[analyzerModel];
 
-      const result = await analyzeResponses(responses, analyzerModel, versionId);
+      const result = await analyzeResponses(responses, analyzerModel, versionId, customInstructions);
       setAnalysis(result);
     } catch (error) {
       console.error("Error analyzing responses:", error);
@@ -278,6 +281,7 @@ export default function Home() {
               selectedVersions={selectedAnalyzerVersions}
               onVersionChange={handleAnalyzerVersionChange}
               onSaveReadme={handleSaveReadme}
+              defaultAnalysisInstructions={DEFAULT_ANALYSIS_INSTRUCTIONS}
             />
           </div>
         </div>

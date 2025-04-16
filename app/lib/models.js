@@ -218,11 +218,12 @@ export async function callChatGPT(
 export async function analyzeResponses(
   responses, 
   analyzerModel = "ChatGPT", 
-  modelVersion = null
+  modelVersion = null,
+  customInstructions = null
 ) {
   try {
-    // Construct the analysis prompt
-    const analysisPrompt = `
+    // Use custom instructions if provided, otherwise use default
+    const systemInstructions = customInstructions || `
       System Instructions:
       - You are an expert at analyzing differences between different LLMs
       - Your job is to analyze the outputs of the models and provide a detailed comparison
@@ -244,6 +245,11 @@ export async function analyzeResponses(
       - Use bold and italics to emphasize important points
       - Use links to any relevant resources
       - Break each section into markdown sections with headers, use lists, and formatting
+    `;
+
+    // Construct the analysis prompt
+    const analysisPrompt = `
+      ${systemInstructions}
 
       ${responses.map(r => `${r.model}: ${r.text}`).join('\n\n')}
     `;
