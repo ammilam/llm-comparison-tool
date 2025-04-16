@@ -12,6 +12,7 @@ import { callSonnet, callGemini, callChatGPT, analyzeResponses } from "./lib/mod
 import { DEFAULT_ANALYSIS_INSTRUCTIONS } from "./utils/system-instructions";
 import { saveAsReadme } from "./utils/readme";
 import { syncCredentials } from "./utils/credentials";
+import InfoBubble from './InfoBubble';
 
 // Model configuration with available versions
 const MODEL_CONFIGS = {
@@ -126,7 +127,7 @@ export default function Home() {
   const [analyzerModels, setAnalyzerModels] = useState(
     AVAILABLE_MODELS.map(model => model.name)
   );
-  
+
   const [selectedAnalyzerVersions, setSelectedAnalyzerVersions] = useState({
     "Claude Sonnet": MODEL_CONFIGS.claude.defaultVersion,
     "Gemini": MODEL_CONFIGS.gemini.defaultVersion,
@@ -217,6 +218,10 @@ export default function Home() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold">LLM Comparison Tool</h1>
         </div>
+        <InfoBubble
+          title="About Response Analysis"
+          content="Analyze responses from different models to understand their strengths, weaknesses, and differences. Select an analyzer model and click 'Analyze Responses' to get a detailed comparison."
+        />
         <div className="flex-none">
           <SettingsButton />
         </div>
