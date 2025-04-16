@@ -4,12 +4,14 @@ import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
+import remarkGfm from "remark-gfm";
 
-export default function AnalysisPanel({ 
-  responses, 
-  analyzerModels, 
-  onAnalyze, 
-  analysis, 
+export default function AnalysisPanel({
+  responses,
+  analyzerModels,
+  onAnalyze,
+  analysis,
   isAnalyzing,
   modelConfigs,
   selectedVersions,
@@ -22,7 +24,7 @@ export default function AnalysisPanel({
   const [showInstructionsEditor, setShowInstructionsEditor] = useState(false);
   const [useCustomInstructions, setUseCustomInstructions] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
-  
+
   // Load custom instructions from localStorage on component mount
   useEffect(() => {
     const savedInstructions = localStorage.getItem('analysis_instructions');
@@ -33,7 +35,7 @@ export default function AnalysisPanel({
       setCustomInstructions(defaultAnalysisInstructions);
     }
   }, [defaultAnalysisInstructions]);
-  
+
   // Helper function to get model ID from name
   const getModelIdFromName = (name) => {
     if (name === "Claude Sonnet") return "claude";
@@ -41,24 +43,24 @@ export default function AnalysisPanel({
     if (name === "ChatGPT") return "chatgpt";
     return "chatgpt";
   };
-  
+
   const handleAnalyze = () => {
     const instructions = useCustomInstructions ? customInstructions : defaultAnalysisInstructions;
     onAnalyze(selectedAnalyzer, instructions);
     setIsOpen(true);
   };
-  
+
   const handleSaveInstructions = () => {
     localStorage.setItem('analysis_instructions', customInstructions);
     setUseCustomInstructions(true);
     setShowInstructionsEditor(false);
-    
+
     // Show a notification
     const notification = document.createElement('div');
     notification.className = 'fixed top-4 right-4 bg-success text-success-content px-4 py-2 rounded shadow-lg z-50 animate-fadeIn';
     notification.textContent = 'Custom analysis instructions saved';
     document.body.appendChild(notification);
-    
+
     setTimeout(() => {
       notification.classList.add('animate-fadeOut');
       setTimeout(() => {
@@ -66,18 +68,18 @@ export default function AnalysisPanel({
       }, 500);
     }, 2000);
   };
-  
+
   const handleResetInstructions = () => {
     localStorage.removeItem('analysis_instructions');
     setCustomInstructions(defaultAnalysisInstructions);
     setUseCustomInstructions(false);
-    
+
     // Show a notification
     const notification = document.createElement('div');
     notification.className = 'fixed top-4 right-4 bg-info text-info-content px-4 py-2 rounded shadow-lg z-50 animate-fadeIn';
     notification.textContent = 'Analysis instructions reset to default';
     document.body.appendChild(notification);
-    
+
     setTimeout(() => {
       notification.classList.add('animate-fadeOut');
       setTimeout(() => {
@@ -85,13 +87,13 @@ export default function AnalysisPanel({
       }, 500);
     }, 2000);
   };
-  
+
   const modelId = getModelIdFromName(selectedAnalyzer);
   const versions = modelConfigs[modelId]?.versions || [];
-  
+
   return (
     <div className="card bg-base-100 shadow-sm overflow-hidden">
-      <div 
+      <div
         className="bg-base-200 p-3 flex items-center justify-between cursor-pointer"
         onClick={() => responses.length > 0 && setIsOpen(!isOpen)}
       >
@@ -102,14 +104,14 @@ export default function AnalysisPanel({
           </button>
         )}
       </div>
-      
+
       {isOpen && (
         <div className="card-body">
           <div className="mb-4 flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row justify-between gap-3">
               <div className="flex flex-col sm:flex-row gap-2">
-                <select 
-                  value={selectedAnalyzer} 
+                <select
+                  value={selectedAnalyzer}
                   onChange={(e) => setSelectedAnalyzer(e.target.value)}
                   className="select select-bordered select-sm"
                 >
@@ -117,7 +119,7 @@ export default function AnalysisPanel({
                     <option key={model} value={model}>{model}</option>
                   ))}
                 </select>
-                
+
                 <select
                   value={selectedVersions[selectedAnalyzer] || modelConfigs[modelId].defaultVersion}
                   onChange={(e) => onVersionChange(selectedAnalyzer, e.target.value)}
@@ -130,7 +132,7 @@ export default function AnalysisPanel({
                   ))}
                 </select>
               </div>
-              
+
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowInstructionsEditor(!showInstructionsEditor)}
@@ -138,21 +140,21 @@ export default function AnalysisPanel({
                 >
                   {showInstructionsEditor ? "Hide Instructions" : "Edit Instructions"}
                 </button>
-                
+
                 <button
                   onClick={handleAnalyze}
                   disabled={isAnalyzing || responses.length < 2}
                   className="btn btn-sm btn-primary"
                 >
-                  {isAnalyzing ? 
+                  {isAnalyzing ?
                     <>
                       <span className="loading loading-spinner loading-xs"></span>
                       Analyzing...
-                    </> : 
+                    </> :
                     "Analyze Responses"
                   }
                 </button>
-                
+
                 {analysis && (
                   <button
                     onClick={() => onSaveReadme(analysis)}
@@ -164,7 +166,7 @@ export default function AnalysisPanel({
                 )}
               </div>
             </div>
-            
+
             {showInstructionsEditor && (
               <div className="mt-2 p-3 bg-base-200 rounded-lg">
                 <div className="flex justify-between items-center mb-2">
@@ -172,23 +174,23 @@ export default function AnalysisPanel({
                   <div className="flex gap-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <span className="label-text">Use Custom</span>
-                      <input 
-                        type="checkbox" 
-                        className="toggle toggle-primary toggle-sm" 
+                      <input
+                        type="checkbox"
+                        className="toggle toggle-primary toggle-sm"
                         checked={useCustomInstructions}
                         onChange={(e) => setUseCustomInstructions(e.target.checked)}
                       />
                     </label>
                   </div>
                 </div>
-                
+
                 <textarea
                   value={customInstructions}
                   onChange={(e) => setCustomInstructions(e.target.value)}
                   className="textarea textarea-bordered w-full h-64 font-mono text-xs"
                   placeholder="Enter custom analysis instructions..."
                 />
-                
+
                 <div className="flex justify-end gap-2 mt-2">
                   <button
                     onClick={handleResetInstructions}
@@ -207,11 +209,12 @@ export default function AnalysisPanel({
               </div>
             )}
           </div>
-          
+
           {analysis ? (
             <div className="prose prose-sm md:prose-base max-w-none">
-              <ReactMarkdown 
-                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]} // Add this for table support
+                rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeSlug]}
                 components={{
                   pre: ({ node, ...props }) => (
                     <pre className="bg-base-200 p-4 rounded-md overflow-x-auto" {...props} />
@@ -220,6 +223,21 @@ export default function AnalysisPanel({
                     inline ? 
                     <code className="bg-base-200 px-1 py-0.5 rounded" {...props} /> :
                     <code {...props} />
+                  ),
+                  // Add specific styling for tables
+                  table: ({ node, ...props }) => (
+                    <div className="overflow-x-auto my-4">
+                      <table className="table table-zebra w-full" {...props} />
+                    </div>
+                  ),
+                  thead: ({ node, ...props }) => (
+                    <thead className="bg-base-200" {...props} />
+                  ),
+                  th: ({ node, ...props }) => (
+                    <th className="px-4 py-2 text-left" {...props} />
+                  ),
+                  td: ({ node, ...props }) => (
+                    <td className="border px-4 py-2" {...props} />
                   )
                 }}
               >
