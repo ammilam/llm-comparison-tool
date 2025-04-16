@@ -17,6 +17,7 @@ This application allows you to test the same prompt against different language m
 - **System Instructions**: Add custom system instructions to guide model behavior
 - **Response Analysis**: Analyze and compare responses between models using any of the available LLMs
 - **Markdown Rendering**: All responses are rendered as properly formatted markdown
+- **Markdown Export**: All responses can be exported to markdown documents
 - **Raw Response View**: Toggle between formatted and raw JSON responses
 - **Responsive Design**: Works seamlessly on both desktop and mobile devices
 
@@ -63,7 +64,7 @@ gcloud auth login application-default
    npm install
    ```
 
-3. Create a `.env.local` file in the root directory with your API keys:
+3. Edit the `.env` file in the root directory with your API keys:
    ```
    GOOGLE_PROJECT_ID="your-google-project-id"
    OPENAI_API_KEY="your-openai-api-key"
@@ -95,15 +96,16 @@ gcloud auth login application-default
 
 The application is designed to be easily extensible. To add a new model:
 
-1. Create a new server function in models.js
-2. Add model configuration in the `MODEL_CONFIGS` object in page.js
-3. Add the model to the `AVAILABLE_MODELS` array in page.js
+1. Create a new server function in `app/lib/models.js`
+2. Add model configuration in the `MODEL_CONFIGS` object in `app/page.js`
+3. Add the model to the `AVAILABLE_MODELS` array in `app/page.js`
 
 ## Technologies Used
 
 - **Next.js**: React framework with App Router
 - **React 19**: For UI components
 - **Tailwind CSS**: For styling
+- **DaisyUI**: For making things pretty
 - **react-markdown**: For rendering markdown content
 - **API Integrations**: OpenAI, Anthropic Claude, and Google Vertex AI
 
