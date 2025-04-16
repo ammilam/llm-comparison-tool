@@ -235,6 +235,14 @@ export async function analyzeResponses(
       - Provide a summary of the differences between the models
       - Provide a summary of the strengths and weaknesses of each model
       - Provide a summary of the overall performance of each model
+      - At the bottom provide which model you think is the best overall pick
+      - Your analysis should be done in a markdown format
+      - Use bullet points and lists to make the analysis easy to read
+      - Use code blocks for any code snippets
+      - Use tables for any comparisons
+      - Use headers to separate different sections of the analysis
+      - Use bold and italics to emphasize important points
+      - Use links to any relevant resources
       - Break each section into markdown sections with headers, use lists, and formatting
 
       ${responses.map(r => `${r.model}: ${r.text}`).join('\n\n')}
