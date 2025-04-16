@@ -10,6 +10,7 @@ import AnalysisPanel from "./components/AnalysisPanel";
 import { callSonnet, callGemini, callChatGPT, analyzeResponses } from "./lib/models";
 import { DEFAULT_ANALYSIS_INSTRUCTIONS } from "./utils/system-instructions";
 import { saveAsReadme } from "./utils/readme";
+import { syncCredentials } from "./utils/credentials";
 
 // Model configuration with available versions
 const MODEL_CONFIGS = {
@@ -51,11 +52,6 @@ const themeGroups = {
   "Colorful Themes": ["valentine", "halloween", "garden", "forest", "aqua", "lofi", "pastel", "fantasy", "cmyk", "autumn", "acid", "wireframe", "business"]
 };
 
-const handleSaveReadme = (content) => {
-  saveAsReadme(content);
-};
-
-
 const AVAILABLE_MODELS = [
   { id: "claude", name: "Claude Sonnet", func: callSonnet },
   { id: "gemini", name: "Gemini", func: callGemini },
@@ -72,7 +68,10 @@ export default function Home() {
     chatgpt: MODEL_CONFIGS.chatgpt.defaultVersion,
   });
 
-  
+  useEffect(() => {
+    syncCredentials();
+  }, []);
+
   // Theme state
   const [currentTheme, setCurrentTheme] = useState('light');
   const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
@@ -126,6 +125,7 @@ export default function Home() {
   const [analyzerModels, setAnalyzerModels] = useState(
     AVAILABLE_MODELS.map(model => model.name)
   );
+  
   const [selectedAnalyzerVersions, setSelectedAnalyzerVersions] = useState({
     "Claude Sonnet": MODEL_CONFIGS.claude.defaultVersion,
     "Gemini": MODEL_CONFIGS.gemini.defaultVersion,
@@ -215,6 +215,9 @@ export default function Home() {
       <div className="navbar bg-base-200">
         <div className="flex-1">
           <h1 className="text-2xl font-bold">LLM Comparison Tool</h1>
+        </div>
+        <div className="flex-none">
+          <SettingsButton />
         </div>
         <div className="flex-none">
         </div>
