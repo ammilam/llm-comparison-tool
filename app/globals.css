@@ -49,3 +49,58 @@ html, body {
   font-size: 12px;
   z-index: 9999;
 }
+
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  margin-top: 2em !important;
+  margin-bottom: 0.8em !important;
+}
+
+.prose h1 + *, .prose h2 + *, .prose h3 + *, .prose h4 + *, .prose h5 + *, .prose h6 + * {
+  margin-top: 0 !important;
+}
+
+.prose p {
+  margin-top: 1.25em !important;
+  margin-bottom: 1.25em !important;
+}
+
+.prose ul, .prose ol {
+  margin-top: 1.25em !important;
+  margin-bottom: 1.25em !important;
+  padding-left: 1.5em !important;
+}
+
+.prose li {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+
+.prose blockquote {
+  margin: 1.5em 0 !important;
+  padding: 0.5em 1em !important;
+  border-left: 4px solid hsl(var(--primary) / 0.5) !important;
+}
+
+.prose hr {
+  margin: 2em 0 !important;
+}
+
+/* Improve table spacing */
+.prose table {
+  margin: 2em 0 !important;
+}
+
+/* Add space between code blocks and surrounding content */
+.prose pre {
+  margin: 1.5em 0 !important;
+}
+
+/* Section dividers */
+.prose h2:not(:first-child)::before {
+  content: "";
+  display: block;
+  height: 1px;
+  background-color: hsl(var(--base-300));
+  margin-bottom: 1.5em;
+  margin-top: -0.5em;
+}

@@ -4,7 +4,37 @@ import { GoogleGenAI } from '@google/genai';
 import { exec } from "child_process";
 import { promisify } from "util";
 import { VertexAI } from '@google-cloud/vertexai';
+import { cookies } from 'next/headers';
 const execAsync = promisify(exec);
+
+// Helper to get credentials from either env vars or client-side storage
+async function getCredentials() {
+  // Server env variables take precedence
+  const envCredentials = {
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+    openaiApiKey: process.env.OPENAI_API_KEY || '',
+    googleProjectId: process.env.GOOGLE_PROJECT_ID || ''
+  };
+  
+  // Only in development mode we check for client-provided credentials
+  if (process.env.NODE_ENV !== 'production') {
+    const cookieStore = cookies();
+    const clientCreds = {
+      anthropicApiKey: await cookieStore.get('anthropic_api_key')?.value || '',
+      openaiApiKey: await cookieStore.get('openai_api_key')?.value || '',
+      googleProjectId: await cookieStore.get('google_project_id')?.value || ''
+    };
+    
+    // Use client credentials if available
+    return {
+      anthropicApiKey: clientCreds.anthropicApiKey || envCredentials.anthropicApiKey,
+      openaiApiKey: clientCreds.openaiApiKey || envCredentials.openaiApiKey,
+      googleProjectId: clientCreds.googleProjectId || envCredentials.googleProjectId
+    };
+  }
+  
+  return envCredentials;
+}
 
 export async function callSonnet(
   prompt, 
@@ -14,10 +44,17 @@ export async function callSonnet(
   modelVersion = "claude-3-7-sonnet-20250219"
 ) {
   try {
+    const credentials = await getCredentials();
+    const apiKey = credentials.anthropicApiKey;
+    
+    if (!apiKey) {
+      throw new Error("Anthropic API key not configured. Please set up your API key in LLM Connectivity Settings.");
+    }
+    
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
@@ -61,8 +98,14 @@ export async function callGemini(
   modelVersion = "gemini-2.0-flash-001"
 ) {
   try {
+    const credentials = await getCredentials();
+    const projectId = credentials.googleProjectId;
+    
+    if (!projectId) {
+      throw new Error("Google Project ID not configured. Please set up your Project ID in LLM Connectivity Settings.");
+    }
+    
     // Initialize the Vertex AI client
-    const projectId = process.env.GOOGLE_PROJECT_ID;
     const location = "us-central1";
     
     const vertexAI = new VertexAI({
@@ -109,7 +152,6 @@ export async function callGemini(
       ],
     };
     
-    
     // Generate content with streaming
     const streamingResponse = await generativeModel.generateContentStream(requestContent);
     
@@ -152,11 +194,18 @@ export async function callChatGPT(
   modelVersion = "gpt-4o"
 ) {
   try {
+    const credentials = await getCredentials();
+    const apiKey = credentials.openaiApiKey;
+    
+    if (!apiKey) {
+      throw new Error("OpenAI API key not configured. Please set up your API key in LLM Connectivity Settings.");
+    }
+    
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: modelVersion,
