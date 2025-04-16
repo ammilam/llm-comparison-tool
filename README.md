@@ -2,8 +2,6 @@
 
 A powerful Next.js application for testing, comparing, and analyzing responses from multiple large language models side by side.
 
-![LLM Comparison Tool](https://via.placeholder.com/800x450.png?text=LLM+Comparison+Tool)
-
 ## Overview
 
 This application allows you to test the same prompt against different language models (Claude, Gemini, ChatGPT) simultaneously and analyze their responses. It's designed for researchers, prompt engineers, and anyone interested in comparing the capabilities and outputs of various LLMs.
