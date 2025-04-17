@@ -62,12 +62,16 @@ gcloud auth login application-default
    npm install
    ```
 
-3. Edit the `.env` file in the root directory with your API keys:
-   ```
-   GOOGLE_PROJECT_ID="your-google-project-id"
-   OPENAI_API_KEY="your-openai-api-key"
-   ANTHROPIC_API_KEY="your-anthropic-api-key"
-   ```
+3. There are two options to configure the LLM Connectivity settings for API keys and Google Cloud host project:
+
+   3a. (option 1) Edit the `.env` file in the root directory with your API keys:
+      ```
+      GOOGLE_PROJECT_ID="your-google-project-id"
+      OPENAI_API_KEY="your-openai-api-key"
+      ANTHROPIC_API_KEY="your-anthropic-api-key"
+      ```
+
+   3b. (option 2) You can also add the env configurations into the app by clicking the "LLM Connectivity Settings" button in the top-right corner of the webpage.
 
 4. For Google Cloud/Gemini access, make sure you have:
    - Installed the Google Cloud CLI
