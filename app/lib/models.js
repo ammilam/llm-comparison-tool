@@ -18,11 +18,11 @@ async function getCredentials() {
   
   // Only in development mode we check for client-provided credentials
   if (process.env.NODE_ENV !== 'production') {
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const clientCreds = {
-      anthropicApiKey: cookieStore.get('anthropic_api_key')?.value || '',
-      openaiApiKey: cookieStore.get('openai_api_key')?.value || '',
-      googleProjectId: cookieStore.get('google_project_id')?.value || ''
+      anthropicApiKey: await cookieStore.get('anthropic_api_key')?.value || '',
+      openaiApiKey: await cookieStore.get('openai_api_key')?.value || '',
+      googleProjectId: await cookieStore.get('google_project_id')?.value || ''
     };
     
     // Use client credentials if available
