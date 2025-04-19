@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Chart, registerables } from 'chart.js';
-import { Bar, Doughnut } from 'react-chartjs-2';
+import { Bar, Doughnut, PolarArea } from 'react-chartjs-2';
+import { analyzeSentiment } from "../lib/sentiment";
 
 // Register ChartJS components
 if (typeof window !== 'undefined') {
@@ -12,6 +13,8 @@ if (typeof window !== 'undefined') {
 export default function ResponseAnalytics({ responses, responsesByPrompt }) {
     const [metrics, setMetrics] = useState(null);
     const [activeTab, setActiveTab] = useState('length');
+    const [isUsingSentimentAPI, setIsUsingSentimentAPI] = useState(false);
+    const [sentimentProcessing, setSentimentProcessing] = useState(false);
 
     useEffect(() => {
         if (responses && responses.length > 0) {
@@ -19,13 +22,14 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
         }
     }, [responses, responsesByPrompt]);
 
-    const calculateMetrics = (responses, responsesByPrompt) => {
+    const calculateMetrics = async (responses, responsesByPrompt) => {
         // Basic metrics
         const modelResponseLengths = {};
         const modelResponseTimes = {};
         const totalWordsByModel = {};
         const avgWordLengthByModel = {};
         const sentimentScores = {};
+        const sentimentMagnitudes = {};
         const complexityScores = {};
         const promptTokensByModel = {};
         const completionTokensByModel = {};
@@ -44,33 +48,7 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             return words.length > 0 ? totalLength / words.length : 0;
         };
 
-        // Calculate a very basic sentiment score (primitive implementation)
-        // In a real app, use a proper NLP library
-        const calculateSentiment = (text) => {
-            const positive = ['good', 'great', 'excellent', 'best', 'positive',
-                'effective', 'helpful', 'beneficial', 'success'];
-            const negative = ['bad', 'worst', 'poor', 'negative', 'ineffective',
-                'harmful', 'failure', 'issue', 'problem'];
-
-            const lowerText = text.toLowerCase();
-            let score = 0;
-
-            positive.forEach(word => {
-                const regex = new RegExp(`\\b${word}\\b`, 'gi');
-                const matches = lowerText.match(regex);
-                if (matches) score += matches.length;
-            });
-
-            negative.forEach(word => {
-                const regex = new RegExp(`\\b${word}\\b`, 'gi');
-                const matches = lowerText.match(regex);
-                if (matches) score -= matches.length;
-            });
-
-            return score;
-        };
-
-        // Process each response
+        // Process each response for basic metrics first
         responses.forEach(response => {
             if (!response || response.error) return;
 
@@ -79,12 +57,15 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             const wordCount = countWords(text);
             const charCount = text.length;
             const avgWordLength = calculateAvgWordLength(text);
-            const sentiment = calculateSentiment(text);
 
             if (!responseSpeedByModel[model]) {
                 responseSpeedByModel[model] = [];
             }
 
+            // Add response time if available
+            if (response.responseTime) {
+                responseSpeedByModel[model].push(response.responseTime);
+            }
 
             // Initialize if first time seeing this model
             if (!promptTokensByModel[model]) {
@@ -113,6 +94,7 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                 totalWordsByModel[model] = 0;
                 avgWordLengthByModel[model] = [];
                 sentimentScores[model] = [];
+                sentimentMagnitudes[model] = [];
                 complexityScores[model] = [];
             }
 
@@ -120,8 +102,6 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             modelResponseLengths[model].push(charCount);
             totalWordsByModel[model] += wordCount;
             avgWordLengthByModel[model].push(avgWordLength);
-            sentimentScores[model].push(sentiment);
-            responseSpeedByModel[model].push(response.responseTime || 0);
 
             // Simple complexity score based on avg word length and sentence count
             const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
@@ -130,10 +110,40 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             complexityScores[model].push(complexity);
         });
 
+        // Now run sentiment analysis - this may take some time
+        setSentimentProcessing(true);
+
+        try {
+            // Process sentiment analysis for each response
+            for (const response of responses) {
+                if (!response || response.error) continue;
+
+                const model = response.model;
+                const text = response.text;
+
+                // Call the GCP sentiment analysis with fallback
+                const sentiment = await analyzeSentiment(text);
+
+                // Update flag if at least one response used GCP sentiment API
+                if (sentiment.success) {
+                    setIsUsingSentimentAPI(true);
+                }
+
+                // Store sentiment scores and magnitudes
+                sentimentScores[model].push(sentiment.score);
+                sentimentMagnitudes[model].push(sentiment.magnitude || 0);
+            }
+        } catch (error) {
+            console.error("Error analyzing sentiment:", error);
+        } finally {
+            setSentimentProcessing(false);
+        }
+
         // Calculate averages and prepare for display
         const avgResponseLengths = {};
         const avgWordLengths = {};
         const avgSentiment = {};
+        const avgSentimentMagnitude = {};
         const avgComplexity = {};
         const avgResponseSpeed = {};
 
@@ -147,11 +157,16 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             const sentiments = sentimentScores[model];
             avgSentiment[model] = sentiments.reduce((sum, score) => sum + score, 0) / sentiments.length;
 
+            const magnitudes = sentimentMagnitudes[model];
+            avgSentimentMagnitude[model] = magnitudes.reduce((sum, mag) => sum + mag, 0) / magnitudes.length;
+
             const complexities = complexityScores[model];
             avgComplexity[model] = complexities.reduce((sum, score) => sum + score, 0) / complexities.length;
 
             const responseTimes = responseSpeedByModel[model];
-            avgResponseSpeed[model] = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
+            avgResponseSpeed[model] = responseTimes.length > 0
+                ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
+                : 0;
         });
 
         // Calculate response times per prompt if available
@@ -161,9 +176,7 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                 promptResponseTimes[`Prompt ${index + 1}`] = {};
                 promptResponses.forEach(response => {
                     const model = response.model;
-                    // This would use actual timing data if available
-                    // For now, using a proxy based on response length
-                    promptResponseTimes[`Prompt ${index + 1}`][model] = response.text.length / 100;
+                    promptResponseTimes[`Prompt ${index + 1}`][model] = response.responseTime || 0;
                 });
             });
         }
@@ -173,15 +186,29 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             responsesByWords: totalWordsByModel,
             avgWordLength: avgWordLengths,
             sentiment: avgSentiment,
+            sentimentMagnitude: avgSentimentMagnitude,
+            isAdvancedSentiment: isUsingSentimentAPI,
             complexity: avgComplexity,
             promptResponseTimes,
             promptTokens: promptTokensByModel,
             completionTokens: completionTokensByModel,
             totalTokens: totalTokensByModel,
             responseSpeed: avgResponseSpeed
-
         });
     };
+
+    if (!metrics) {
+        return <div className="p-8 text-center opacity-60">
+            {sentimentProcessing ?
+                <>
+                    <div className="loading loading-spinner loading-md mb-4"></div>
+                    <p>Analyzing sentiment data...</p>
+                </> :
+                "No data available for analytics"
+            }
+        </div>;
+    }
+
 
     if (!metrics) {
         return <div className="p-8 text-center opacity-60">No data available for analytics</div>;
@@ -247,13 +274,50 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             {
                 label: 'Sentiment Score',
                 data: models.map(model => metrics.sentiment[model]),
-                backgroundColor: chartColors,
+                backgroundColor: chartColors.map(c => c.replace('0.8', '0.6')),
                 borderColor: chartColors.map(color => color.replace('0.8', '1')),
                 borderWidth: 1,
+                yAxisID: 'y'
             },
+            ...(metrics.isAdvancedSentiment ? [{
+                label: 'Sentiment Magnitude',
+                data: models.map(model => metrics.sentimentMagnitude[model]),
+                backgroundColor: chartColors.map(c => c.replace('0.8', '0.9')),
+                borderColor: chartColors.map(color => color.replace('0.8', '1')),
+                borderWidth: 1,
+                type: 'line',
+                yAxisID: 'y1',
+            }] : []),
         ],
     };
 
+    const sentimentChartOptions = {
+        ...chartOptions,
+        scales: {
+            y: {
+                beginAtZero: false,
+                min: -1,
+                max: 1,
+                title: {
+                    display: true,
+                    text: 'Sentiment Score'
+                }
+            },
+            ...(metrics.isAdvancedSentiment ? {
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Magnitude'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    }
+                }
+            } : {})
+        }
+    };
     // Prompt response time chart data if available
     let promptTimeChartData = null;
     if (Object.keys(metrics.promptResponseTimes).length > 0) {
@@ -462,7 +526,30 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                             {activeTab === 'length' && <Bar data={lengthChartData} options={chartOptions} />}
                             {activeTab === 'words' && <Bar data={wordChartData} options={chartOptions} />}
                             {activeTab === 'complexity' && <Bar data={complexityChartData} options={chartOptions} />}
-                            {activeTab === 'sentiment' && <Bar data={sentimentChartData} options={chartOptions} />}
+                            {activeTab === 'sentiment' && (
+                                <div>
+                                    <Bar data={sentimentChartData} options={sentimentChartOptions} />
+                                    <div className="mt-4 text-sm">
+                                        {metrics.isAdvancedSentiment ? (
+                                            <>
+                                                <div className="alert alert-success mb-2">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                    </svg>
+                                                    <span>Using Google Cloud Natural Language API for advanced sentiment analysis</span>
+                                                </div>
+                                                <p><strong>Sentiment Score</strong>: A value between -1.0 (negative) and 1.0 (positive) representing sentiment.</p>
+                                                <p><strong>Magnitude</strong>: Indicates the overall strength of emotion regardless of being positive or negative.</p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p><strong>Note:</strong> Using basic sentiment analysis based on keyword matching.</p>
+                                                <p className="text-xs mt-1">To enable advanced sentiment analysis, configure Google Cloud Project ID and enable Natural Language API.</p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             {activeTab === 'promptTimes' && promptTimeChartData && (
                                 <Bar
                                     data={promptTimeChartData}
@@ -516,7 +603,7 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                                 />
                             )}
                             {activeTab === 'speed' && (
-                                <Bar
+                                <PolarArea
                                     data={{
                                         labels: models,
                                         datasets: [

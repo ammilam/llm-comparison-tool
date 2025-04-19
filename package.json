@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google-cloud/language": "^7.0.1",
     "@google-cloud/vertexai": "^1.9.3",
     "@google/genai": "^0.8.0",
     "@headlessui/react": "^2.2.1",

@@ -319,6 +319,22 @@ Run this command to authenticate:
 gcloud auth application-default login
 \`\`\`
 
+## **Google Cloud Features**
+
+When using Google Cloud with this application:
+
+1. **Gemini models**: Requires Vertex AI API enabled
+2. **Advanced Sentiment Analysis**: Requires Natural Language API enabled
+3. **Authentication**: Uses Application Default Credentials
+
+For sentiment analysis, enable the Natural Language API:
+
+\`\`\`bash
+gcloud services enable language.googleapis.com
+\`\`\`
+
+Without Google Cloud configuration, the app will fall back to basic sentiment analysis.
+
 ## **Setting Up LLM Connectivity Configurations For Local Testing**
 
 ### **.env File**

@@ -8,7 +8,7 @@ import { cookies } from 'next/headers';
 const execAsync = promisify(exec);
 
 // Helper to get credentials from either env vars or client-side storage
-async function getCredentials() {
+export async function getCredentials() {
   // Server env variables take precedence
   const envCredentials = {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
