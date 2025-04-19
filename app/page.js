@@ -13,6 +13,7 @@ import { DEFAULT_ANALYSIS_INSTRUCTIONS } from "./utils/system-instructions";
 import { saveAsReadme } from "./utils/readme";
 import { syncCredentials } from "./utils/credentials";
 import InfoBubble from './components/InfoBubble';
+import ResponseAnalytics from "./components/ResponseAnalytics";
 
 // Model configuration with available versions
 const MODEL_CONFIGS = {
@@ -77,7 +78,7 @@ export default function Home() {
   // Theme state - keeping your existing theme handling
   const [currentTheme, setCurrentTheme] = useState('light');
   const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
-  
+
   // Multi-prompt state
   const [prompts, setPrompts] = useState([
     { text: "", systemInstructions: "", useDefaultSystem: false },
@@ -86,12 +87,12 @@ export default function Home() {
     { text: "", systemInstructions: "", useDefaultSystem: true },
     { text: "", systemInstructions: "", useDefaultSystem: true }
   ]);
-  
+
   // Responses state
   const [responsesByPrompt, setResponsesByPrompt] = useState([]);
   const [responses, setResponses] = useState([]);
   const [currentProcessingPrompt, setCurrentProcessingPrompt] = useState(null);
-  
+
   // Apply theme effect - keeping your existing code
   useEffect(() => {
     // Get saved theme on initial load
@@ -186,13 +187,13 @@ export default function Home() {
     // Process prompts sequentially
     for (let i = 0; i < activePrompts.length; i++) {
       setCurrentProcessingPrompt(i);
-      
+
       const promptObj = activePrompts[i];
-      
+
       // Determine which system instructions to use
-      const systemInstructionsToUse = promptObj.useDefaultSystem && i > 0 ? 
+      const systemInstructionsToUse = promptObj.useDefaultSystem && i > 0 ?
         prompts[0].systemInstructions : promptObj.systemInstructions;
-      
+
       const modelPromises = selectedModels.map(model =>
         model.func(
           promptObj.text,
@@ -205,20 +206,20 @@ export default function Home() {
 
       try {
         const results = await Promise.all(modelPromises);
-        
+
         const promptResponses = results.map(result => ({
           ...result,
           promptIndex: i,
           promptText: promptObj.text
         }));
-        
+
         newResponsesByPrompt.push(promptResponses);
         allResponses.push(...promptResponses);
-        
+
         // Update responses incrementally
         setResponsesByPrompt([...newResponsesByPrompt]);
       } catch (error) {
-        console.error(`Error testing models for prompt ${i+1}:`, error);
+        console.error(`Error testing models for prompt ${i + 1}:`, error);
       }
     }
 
@@ -231,14 +232,14 @@ export default function Home() {
   const handleAnalyze = async (promptIndex, analyzerModel, customInstructions) => {
     // Default to analyzing all responses
     let responsesToAnalyze = responses;
-    
+
     // If a specific prompt index is provided and valid, filter responses for that prompt
     if (promptIndex !== undefined && promptIndex >= 0 && promptIndex < responsesByPrompt.length) {
       responsesToAnalyze = responsesByPrompt[promptIndex];
     }
-    
-    if (responsesToAnalyze.length < 2) return;
-    
+
+    if (responsesToAnalyze.length < 1) return;
+
     setIsAnalyzing(true);
 
     try {
@@ -262,18 +263,18 @@ export default function Home() {
       }
 
       const result = await analyzeResponses(
-        responsesToAnalyze, 
-        analyzerModel, 
-        versionId, 
+        responsesToAnalyze,
+        analyzerModel,
+        versionId,
         customInstructions,
         analysisContext
       );
-      
+
       setAnalysis({
         ...result,
         promptIndex
       });
-      
+
       setSelectedPromptForAnalysis(promptIndex);
     } catch (error) {
       console.error("Error analyzing responses:", error);
@@ -410,7 +411,7 @@ This tool now supports up to 5 sequential prompts:
                 <div className="flex flex-col items-center justify-center">
                   <div className="loading loading-spinner loading-lg"></div>
                   <p className="mt-4">
-                    {currentProcessingPrompt !== null ? 
+                    {currentProcessingPrompt !== null ?
                       `Processing prompt ${currentProcessingPrompt + 1} of ${prompts.filter(p => p.text.trim()).length}...` :
                       'Processing prompts...'
                     }
@@ -448,6 +449,13 @@ This tool now supports up to 5 sequential prompts:
               </div>
             )}
 
+            {responses.length > 0 && (
+              <ResponseAnalytics
+                responses={responses}
+                responsesByPrompt={responsesByPrompt}
+              />
+            )}
+
             {/* Empty state */}
             {!isLoading && selectedModels.length > 0 && responsesByPrompt.length === 0 && (
               <div className="card bg-base-100 p-8 text-center opacity-60">
@@ -478,7 +486,7 @@ This tool now supports up to 5 sequential prompts:
             />
           </div>
         </div>
-        
+
         <ThemeSwitcher
           currentTheme={currentTheme}
           setCurrentTheme={changeTheme}

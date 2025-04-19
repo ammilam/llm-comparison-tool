@@ -162,7 +162,7 @@ export default function AnalysisPanel({
 
                 <button
                   onClick={handleAnalyze}
-                  disabled={isAnalyzing || responses.length < 2}
+                  disabled={isAnalyzing || responses.length === 0}
                   className="btn btn-sm btn-primary"
                 >
                   {isAnalyzing ?
@@ -234,12 +234,12 @@ export default function AnalysisPanel({
               {/* Show which prompt was analyzed */}
               {hasMultiplePrompts && analysis.promptIndex !== undefined && (
                 <div className="bg-base-200 p-2 rounded-md text-sm mb-4">
-                  {analysis.promptIndex >= 0 ? 
-                    `Analysis for Prompt ${analysis.promptIndex + 1}` : 
+                  {analysis.promptIndex >= 0 ?
+                    `Analysis for Prompt ${analysis.promptIndex + 1}` :
                     "Analysis for All Prompts"}
                 </div>
               )}
-              
+
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeSlug]}
@@ -297,8 +297,8 @@ export default function AnalysisPanel({
             </div>
           ) : (
             <div className="text-center p-8 opacity-60">
-              {responses.length < 2 ? (
-                "Need at least two model responses to analyze."
+              {responses.length === 0 ? (
+                "Need at least one model response to analyze."
               ) : (
                 <>
                   <p>Click "Analyze Responses" to compare model outputs.</p>
