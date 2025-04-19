@@ -291,33 +291,6 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
         ],
     };
 
-    const sentimentChartOptions = {
-        ...chartOptions,
-        scales: {
-            y: {
-                beginAtZero: false,
-                min: -1,
-                max: 1,
-                title: {
-                    display: true,
-                    text: 'Sentiment Score'
-                }
-            },
-            ...(metrics.isAdvancedSentiment ? {
-                y1: {
-                    beginAtZero: true,
-                    position: 'right',
-                    title: {
-                        display: true,
-                        text: 'Magnitude'
-                    },
-                    grid: {
-                        drawOnChartArea: false,
-                    }
-                }
-            } : {})
-        }
-    };
     // Prompt response time chart data if available
     let promptTimeChartData = null;
     if (Object.keys(metrics.promptResponseTimes).length > 0) {
@@ -358,6 +331,35 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             }
         },
     };
+
+    const sentimentChartOptions = {
+        ...chartOptions,
+        scales: {
+            y: {
+                beginAtZero: false,
+                min: -1,
+                max: 1,
+                title: {
+                    display: true,
+                    text: 'Sentiment Score'
+                }
+            },
+            ...(metrics.isAdvancedSentiment ? {
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Magnitude'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    }
+                }
+            } : {})
+        }
+    };
+
     const isSingleModel = models.length === 1;
 
     return (

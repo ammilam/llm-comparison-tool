@@ -36,7 +36,6 @@ export async function analyzeSentiment(text) {
     // Call the GCP sentiment analysis API
     const [result] = await client.analyzeSentiment({document});
     const sentiment = result.documentSentiment;
-    console.log('google sentiment', sentiment);
     
     return {
       score: sentiment.score,
