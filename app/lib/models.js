@@ -268,7 +268,9 @@ export async function analyzeResponses(
   responses, 
   analyzerModel = "ChatGPT", 
   modelVersion = null,
-  customInstructions = null
+  customInstructions = null,
+  analysisContext = ""
+
 ) {
   try {
     // Use custom instructions if provided, otherwise use default
@@ -298,10 +300,12 @@ export async function analyzeResponses(
 
     // Construct the analysis prompt
     const analysisPrompt = `
-      ${systemInstructions}
+    ${systemInstructions}
 
-      ${responses.map(r => `${r.model}: ${r.text}`).join('\n\n')}
-    `;
+    ${analysisContext ? `Analysis Context: ${analysisContext}\n\n` : ""}
+    ${responses.map(r => `${r.model}: ${r.text}`).join('\n\n')}
+  `;
+
 
     // Call the selected model for analysis
     let analysisResult;
