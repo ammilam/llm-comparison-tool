@@ -122,15 +122,18 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                 const text = response.text;
 
                 // Call the GCP sentiment analysis with fallback
-                const sentiment = await analyzeSentiment(text);
+                const sentiment = await analyzeSentiment(text, model);
 
                 // Update flag if at least one response used GCP sentiment API
                 if (sentiment.success) {
                     setIsUsingSentimentAPI(true);
                 }
 
+                console.log(`Model: ${model}, Score: ${sentiment.score}, Magnitude: ${sentiment.magnitude}`);
+
+
                 // Store sentiment scores and magnitudes
-                sentimentScores[model].push(sentiment.score);
+                sentimentScores[model].push(sentiment.score || 0);
                 sentimentMagnitudes[model].push(sentiment.magnitude || 0);
             }
         } catch (error) {
@@ -273,7 +276,11 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
         datasets: [
             {
                 label: 'Sentiment Score',
-                data: models.map(model => metrics.sentiment[model]),
+                data: models.map(model => {
+                    // Ensure we have a valid number, even if it's zero
+                    const val = metrics.sentiment[model];
+                    return val !== undefined ? val : 0;
+                }),
                 backgroundColor: chartColors.map(c => c.replace('0.8', '0.6')),
                 borderColor: chartColors.map(color => color.replace('0.8', '1')),
                 borderWidth: 1,
@@ -281,7 +288,11 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             },
             ...(metrics.isAdvancedSentiment ? [{
                 label: 'Sentiment Magnitude',
-                data: models.map(model => metrics.sentimentMagnitude[model]),
+                data: models.map(model => {
+                    // Ensure we have a valid number for magnitude
+                    const val = metrics.sentimentMagnitude[model];
+                    return val !== undefined ? val : 0;
+                }),
                 backgroundColor: chartColors.map(c => c.replace('0.8', '0.9')),
                 borderColor: chartColors.map(color => color.replace('0.8', '1')),
                 borderWidth: 1,
@@ -342,6 +353,16 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                 title: {
                     display: true,
                     text: 'Sentiment Score'
+                },
+                ticks: {
+                    callback: function (value) {
+                        if (value === -1) return 'Very Negative';
+                        if (value === -0.5) return 'Negative';
+                        if (value === 0) return 'Neutral';
+                        if (value === 0.5) return 'Positive';
+                        if (value === 1) return 'Very Positive';
+                        return value;
+                    }
                 }
             },
             ...(metrics.isAdvancedSentiment ? {
@@ -354,9 +375,36 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                     },
                     grid: {
                         drawOnChartArea: false,
-                    }
+                    },
+                    suggestedMax: 5, // Most texts have magnitudes under 5
                 }
             } : {})
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        const datasetLabel = context.dataset.label;
+                        const value = context.parsed.y;
+
+                        if (datasetLabel === 'Sentiment Score') {
+                            let sentiment = 'Neutral';
+                            if (value < -0.75) sentiment = 'Very Negative';
+                            else if (value < -0.25) sentiment = 'Negative';
+                            else if (value < 0.25) sentiment = 'Neutral';
+                            else if (value < 0.75) sentiment = 'Positive';
+                            else sentiment = 'Very Positive';
+
+                            return `${datasetLabel}: ${value.toFixed(2)} (${sentiment})`;
+                        } else {
+                            return `${datasetLabel}: ${value.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            legend: {
+                position: 'top',
+            }
         }
     };
 
@@ -491,6 +539,16 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                                 <div className="stat-title">Complexity</div>
                                 <div className="text-3xl font-bold">{metrics.complexity[models[0]].toFixed(2)}</div>
                             </div>
+                            <div className="card bg-base-200 p-4 text-center">
+                                <div className="stat-title">Sentiment</div>
+                                <div className="text-3xl font-bold">
+                                    {metrics.sentiment[models[0]].toFixed(2)}
+                                </div>
+                                <div className="text-xs mt-1">
+                                    {metrics.sentiment[models[0]] < -0.25 ? 'Negative' :
+                                        metrics.sentiment[models[0]] > 0.25 ? 'Positive' : 'Neutral'}
+                                </div>
+                            </div>
                             {metrics.promptTokens[models[0]] > 0 && (
                                 <>
                                     <div className="card bg-base-200 p-4 text-center">
@@ -533,16 +591,18 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                                     <Bar data={sentimentChartData} options={sentimentChartOptions} />
                                     <div className="mt-4 text-sm">
                                         {metrics.isAdvancedSentiment ? (
-                                            <>
-                                                <div className="alert alert-success mb-2">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                                    </svg>
-                                                    <span>Using Google Cloud Natural Language API for advanced sentiment analysis</span>
-                                                </div>
-                                                <p><strong>Sentiment Score</strong>: A value between -1.0 (negative) and 1.0 (positive) representing sentiment.</p>
-                                                <p><strong>Magnitude</strong>: Indicates the overall strength of emotion regardless of being positive or negative.</p>
-                                            </>
+                                            <div className="card bg-base-200 p-4 text-center">
+                                            <div className="stat-title">Sentiment Magnitude</div>
+                                            <div className="text-3xl font-bold">
+                                              {metrics.sentimentMagnitude[models[0]].toFixed(2)}
+                                            </div>
+                                            <div className="text-xs mt-1">
+                                              {metrics.sentimentMagnitude[models[0]] > 3 ? 'Strong' : 
+                                               metrics.sentimentMagnitude[models[0]] > 1 ? 'Moderate' : 'Mild'} 
+                                              emotional content
+                                            </div>
+                                          </div>
+                                        
                                         ) : (
                                             <>
                                                 <p><strong>Note:</strong> Using basic sentiment analysis based on keyword matching.</p>
@@ -605,7 +665,7 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                                 />
                             )}
                             {activeTab === 'speed' && (
-                                <PolarArea
+                                <Bar
                                     data={{
                                         labels: models,
                                         datasets: [

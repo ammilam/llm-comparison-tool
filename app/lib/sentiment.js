@@ -9,56 +9,60 @@ import { getCredentials } from './models';
  * @param {string} text - Text to analyze
  * @returns {Promise<{score: number, magnitude: number, success: boolean}>}
  */
-export async function analyzeSentiment(text) {
-  // First, check if we have Google Cloud credentials
-  try {
-    const credentials = await getCredentials();
-    
-    // If we don't have a Google Project ID, fall back to basic analysis
-    if (!credentials.googleProjectId) {
+export async function analyzeSentiment(text, model) {
+    // First, check if we have Google Cloud credentials
+    try {
+      // Truncate extremely long texts to avoid GCP limits
+      const truncatedText = text.substring(0, 100000); // GCP has a size limit
+      
+      const credentials = await getCredentials();
+      
+      // If we don't have a Google Project ID, fall back to basic analysis
+      if (!credentials.googleProjectId) {
+        return {
+          score: basicSentimentAnalysis(truncatedText),
+          magnitude: 0,
+          success: false,
+          error: "No Google Cloud Project ID configured"
+        };
+      }
+      
+      // Create a language client
+      const client = new LanguageServiceClient();
+      
+      // Prepare the document
+      const document = {
+        content: truncatedText,
+        type: 'PLAIN_TEXT',
+      };
+      
+      // Call the GCP sentiment analysis API
+      const [result] = await client.analyzeSentiment({document});
+      const sentiment = result.documentSentiment;
+      
+      // Handle null or undefined values with defaults
+      return {
+        score: sentiment.score !== null && sentiment.score !== undefined ? sentiment.score : 0,
+        magnitude: sentiment.magnitude !== null && sentiment.magnitude !== undefined ? sentiment.magnitude : 0,
+        success: true,
+        sentences: result.sentences?.map(sentence => ({
+          text: sentence.text?.content || "",
+          score: sentence.sentiment?.score || 0,
+          magnitude: sentence.sentiment?.magnitude || 0
+        })) || []
+      };
+    } catch (error) {
+      console.error('Error analyzing sentiment with GCP:', error);
+      
+      // Fall back to basic analysis
       return {
         score: basicSentimentAnalysis(text),
         magnitude: 0,
         success: false,
-        error: "No Google Cloud Project ID configured"
+        error: error.message
       };
     }
-    
-    // Create a language client
-    const client = new LanguageServiceClient();
-    
-    // Prepare the document
-    const document = {
-      content: text,
-      type: 'PLAIN_TEXT',
-    };
-    
-    // Call the GCP sentiment analysis API
-    const [result] = await client.analyzeSentiment({document});
-    const sentiment = result.documentSentiment;
-    
-    return {
-      score: sentiment.score,
-      magnitude: sentiment.magnitude,
-      success: true,
-      sentences: result.sentences.map(sentence => ({
-        text: sentence.text.content,
-        score: sentence.sentiment.score,
-        magnitude: sentence.sentiment.magnitude
-      }))
-    };
-  } catch (error) {
-    console.error('Error analyzing sentiment with GCP:', error);
-    
-    // Fall back to basic analysis
-    return {
-      score: basicSentimentAnalysis(text),
-      magnitude: 0,
-      success: false,
-      error: error.message
-    };
   }
-}
 
 /**
  * Basic sentiment analysis as a fallback when GCP is not available
