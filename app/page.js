@@ -8,46 +8,34 @@ import ParameterConfig from "./components/ParameterConfig";
 import ResponsePane from "./components/ResponsePane";
 import AnalysisPanel from "./components/AnalysisPanel";
 import SettingsButton from "./components/SettingsButton";
-import { callSonnet, callGemini, callChatGPT, analyzeResponses } from "./lib/models";
+import {  callSonnet, 
+  callGemini, 
+  callChatGPT, 
+  analyzeResponses} from "./lib/models";
 import { DEFAULT_ANALYSIS_INSTRUCTIONS } from "./utils/system-instructions";
 import { saveAsReadme } from "./utils/readme";
 import { syncCredentials } from "./utils/credentials";
 import InfoBubble from './components/InfoBubble';
 import ResponseAnalytics from "./components/ResponseAnalytics";
+import { 
+  MODEL_CONFIGS, 
+  MODEL_PROVIDERS, 
+  MODEL_ID_TO_NAME, 
+  getAvailableModels,
+} from "./config/models";
 
-// Model configuration with available versions
-const MODEL_CONFIGS = {
-  claude: {
-    name: "Claude Sonnet",
-    versions: [
-      { id: "claude-3-7-sonnet-20250219", name: "Claude 3.7 Sonnet" },
-      { id: "claude-3-5-sonnet-20240620", name: "Claude 3.5 Sonnet" },
-      { id: "claude-3-opus-20240229", name: "Claude 3 Opus" },
-      { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku" }
-    ],
-    defaultVersion: "claude-3-7-sonnet-20250219"
-  },
-  gemini: {
-    name: "Gemini",
-    versions: [
-      { id: "gemini-2.0-flash-001", name: "Gemini 2.0 Flash" },
-      { id: "gemini-2.0-pro-001", name: "Gemini 2.0 Pro" },
-      { id: "gemini-1.5-flash-001", name: "Gemini 1.5 Flash" },
-      { id: "gemini-1.5-pro-001", name: "Gemini 1.5 Pro" }
-    ],
-    defaultVersion: "gemini-2.0-flash-001"
-  },
-  chatgpt: {
-    name: "ChatGPT",
-    versions: [
-      { id: "gpt-4o", name: "GPT-4o" },
-      { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
-      { id: "gpt-4", name: "GPT-4" },
-      { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" }
-    ],
-    defaultVersion: "gpt-4o"
-  }
+// Create mapping of model IDs to their functions
+const modelFunctions = {
+  [MODEL_PROVIDERS.CLAUDE]: callSonnet,
+  [MODEL_PROVIDERS.GEMINI]: callGemini,
+  [MODEL_PROVIDERS.CHATGPT]: callChatGPT,
 };
+
+// Get available models in the format expected by the UI
+const AVAILABLE_MODELS = getAvailableModels().map(model => ({
+  ...model,
+  func: modelFunctions[model.id]
+}));
 
 const themeGroups = {
   "Light Themes": ["light", "cupcake", "bumblebee", "emerald", "corporate", "lemonade", "winter"],
@@ -55,20 +43,17 @@ const themeGroups = {
   "Colorful Themes": ["valentine", "halloween", "garden", "forest", "aqua", "lofi", "pastel", "fantasy", "cmyk", "autumn", "acid", "wireframe", "business"]
 };
 
-const AVAILABLE_MODELS = [
-  { id: "claude", name: "Claude Sonnet", func: callSonnet },
-  { id: "gemini", name: "Gemini", func: callGemini },
-  { id: "chatgpt", name: "ChatGPT", func: callChatGPT },
-];
 
 export default function Home() {
   // Model selection state - keeping your existing state
   const [analysisInstructions, setAnalysisInstructions] = useState(DEFAULT_ANALYSIS_INSTRUCTIONS);
   const [selectedModels, setSelectedModels] = useState([AVAILABLE_MODELS[0]]);
-  const [selectedVersions, setSelectedVersions] = useState({
-    claude: MODEL_CONFIGS.claude.defaultVersion,
-    gemini: MODEL_CONFIGS.gemini.defaultVersion,
-    chatgpt: MODEL_CONFIGS.chatgpt.defaultVersion,
+  const [selectedVersions, setSelectedVersions] = useState(() => {
+    const defaults = {};
+    Object.entries(MODEL_CONFIGS).forEach(([modelId, config]) => {
+      defaults[modelId] = config.defaultVersion;
+    });
+    return defaults;
   });
 
   useEffect(() => {
@@ -137,14 +122,18 @@ export default function Home() {
   };
 
   // Analyzer state - keeping your existing code
-  const [analyzerModels, setAnalyzerModels] = useState(
-    AVAILABLE_MODELS.map(model => model.name)
+  const [analyzerModels, setAnalyzerModels] = useState(() => 
+    Object.values(MODEL_ID_TO_NAME)
   );
 
-  const [selectedAnalyzerVersions, setSelectedAnalyzerVersions] = useState({
-    "Claude Sonnet": MODEL_CONFIGS.claude.defaultVersion,
-    "Gemini": MODEL_CONFIGS.gemini.defaultVersion,
-    "ChatGPT": MODEL_CONFIGS.chatgpt.defaultVersion,
+
+  const [selectedAnalyzerVersions, setSelectedAnalyzerVersions] = useState(() => {
+    const defaults = {};
+    Object.entries(MODEL_CONFIGS).forEach(([modelId, config]) => {
+      const modelName = MODEL_ID_TO_NAME[modelId];
+      defaults[modelName] = config.defaultVersion;
+    });
+    return defaults;
   });
 
   // Handle model version selection - keeping your existing code

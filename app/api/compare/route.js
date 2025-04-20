@@ -2,36 +2,26 @@ import { NextResponse } from 'next/server';
 import { callSonnet, callGemini, callChatGPT, analyzeResponses } from '../../lib/models';
 import { analyzeSentiment } from '../../lib/sentiment';
 import { DEFAULT_ANALYSIS_INSTRUCTIONS } from '../../utils/system-instructions';
+import { 
+  MODEL_CONFIGS, 
+  MODEL_PROVIDERS, 
+  MODEL_ID_TO_NAME,
+  DEFAULT_ANALYSIS_MODEL,
+  normalizeModelIdentifier,
+  isValidModelId
+} from '../../config/models';
 
-// Main function to handle both POST and GET requests
+// Only handle POST requests with JSON payload
 export async function POST(request) {
-  return await handleRequest(request);
-}
-
-export async function GET(request) {
-  return await handleRequest(request);
-}
-
-async function handleRequest(request) {
   try {
-    // Parse query parameters for GET or body for POST
+    // Parse request body as JSON
     let params;
-    if (request.method === 'GET') {
-      const url = new URL(request.url);
-      params = Object.fromEntries(url.searchParams);
-      
-      // Parse any JSON strings in query params
-      for (const key in params) {
-        try {
-          if (params[key].startsWith('[') || params[key].startsWith('{')) {
-            params[key] = JSON.parse(params[key]);
-          }
-        } catch (e) {
-          // Keep as string if not valid JSON
-        }
-      }
-    } else {
+    try {
       params = await request.json();
+    } catch (error) {
+      return NextResponse.json({ 
+        error: 'Invalid JSON in request body' 
+      }, { status: 400 });
     }
 
     // Extract parameters with defaults
@@ -42,11 +32,11 @@ async function handleRequest(request) {
       temperature = 0.7,
       max_tokens = 2048,
       analyze_responses = false,
-      analyze_responses_model = 'ChatGPT',
+      analyze_responses_model = DEFAULT_ANALYSIS_MODEL, // Default from config
       metrics = false,
       model_versions = {}
     } = params;
-
+    
     // Validate required parameters
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -56,44 +46,52 @@ async function handleRequest(request) {
       return NextResponse.json({ error: 'At least one model must be specified' }, { status: 400 });
     }
 
-    // Define model mapping
-    const MODEL_MAPPING = {
-      'claude': {
-        func: callSonnet,
-        defaultVersion: 'claude-3-7-sonnet-20250219'
-      },
-      'gemini': {
-        func: callGemini,
-        defaultVersion: 'gemini-2.0-flash-001'
-      },
-      'chatgpt': {
-        func: callChatGPT,
-        defaultVersion: 'gpt-4o'
-      }
-    };
-
     // Process each model
     const modelPromises = [];
     const validModels = [];
     const invalidModels = [];
 
-    for (const model of models) {
-      const modelConfig = MODEL_MAPPING[model.toLowerCase()];
-      if (!modelConfig) {
+    // Map of model functions
+    const modelFunctions = {
+      [MODEL_CONFIGS[MODEL_PROVIDERS.CLAUDE].func]: callSonnet,
+      [MODEL_CONFIGS[MODEL_PROVIDERS.GEMINI].func]: callGemini,
+      [MODEL_CONFIGS[MODEL_PROVIDERS.CHATGPT].func]: callChatGPT
+    };
+
+    // Process each requested model
+    for (const modelIdentifier of models) {
+      // Normalize the model identifier (handle different formats)
+      const modelId = normalizeModelIdentifier(modelIdentifier);
+      
+      // Check if the model is valid
+      if (!isValidModelId(modelId)) {
         invalidModels.push({
-          model,
-          error: 'Unsupported model. Supported models are: claude, gemini, chatgpt'
+          model: modelIdentifier,
+          error: `Unsupported model. Supported models are: ${Object.keys(MODEL_CONFIGS).join(', ')}`
+        });
+        continue;
+      }
+
+      // Get the model configuration
+      const modelConfig = MODEL_CONFIGS[modelId];
+      
+      // Get the function to call the model
+      const modelFunction = modelFunctions[modelConfig.func];
+      if (!modelFunction) {
+        invalidModels.push({
+          model: modelIdentifier,
+          error: `Model function not available: ${modelConfig.func}`
         });
         continue;
       }
 
       // Use specified version or default
-      const modelVersion = model_versions[model.toLowerCase()] || modelConfig.defaultVersion;
+      const modelVersion = model_versions[modelId] || modelConfig.defaultVersion;
 
       try {
         // Queue the model call
         modelPromises.push(
-          modelConfig.func(prompt, system_instructions, temperature, max_tokens, modelVersion)
+          modelFunction(prompt, system_instructions, temperature, max_tokens, modelVersion)
             .then(response => {
               // Base64 encode the response text for consistent transfer
               const encodedResponse = Buffer.from(response.text).toString('base64');
@@ -104,16 +102,16 @@ async function handleRequest(request) {
             })
             .catch(error => {
               invalidModels.push({
-                model,
+                model: modelIdentifier,
                 error: error.message
               });
               return null;
             })
         );
-        validModels.push(model);
+        validModels.push(modelIdentifier);
       } catch (error) {
         invalidModels.push({
-          model,
+          model: modelIdentifier,
           error: error.message
         });
       }
@@ -151,23 +149,57 @@ async function handleRequest(request) {
 
     // Perform response analysis if requested
     if (analyze_responses && successfulResponses.length > 0) {
-      const analysisResult = await analyzeResponses(
-        successfulResponses,
-        analyze_responses_model,
-        null, // Use default version
-        DEFAULT_ANALYSIS_INSTRUCTIONS,
-        `API-requested analysis of ${successfulResponses.length} model responses to prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`
-      );
-
-      result.analysis = {
-        model: analyze_responses_model,
-        text: analysisResult.text,
-        encoded_text: Buffer.from(analysisResult.text).toString('base64')
-      };
+      try {
+        // Normalize the analyzer model identifier
+        const analyzerModelId = normalizeModelIdentifier(analyze_responses_model);
+        
+        // If not a valid model ID, fall back to default
+        const finalAnalyzerModelId = isValidModelId(analyzerModelId) ? 
+          analyzerModelId : DEFAULT_ANALYSIS_MODEL;
+        
+        // Get the proper model name for the analyzer
+        const analyzerModelName = MODEL_ID_TO_NAME[finalAnalyzerModelId];
+        
+        // Get the appropriate model version
+        const analysisModelVersion = model_versions[finalAnalyzerModelId] || 
+          MODEL_CONFIGS[finalAnalyzerModelId].defaultVersion;
+        
+        console.log(`Using ${analyzerModelName} (${finalAnalyzerModelId}) for analysis with version: ${analysisModelVersion}`);
+        
+        const analysisContext = `API-requested analysis of ${successfulResponses.length} model responses to prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`;
+        
+        // Prepare responses for analysis by decoding the base64 text
+        const responsesForAnalysis = successfulResponses.map(r => ({
+          ...r,
+          text: Buffer.from(r.encoded_text, 'base64').toString()
+        }));
+        
+        // Call the analysis function
+        const analysisResult = await analyzeResponses(
+          responsesForAnalysis,
+          analyzerModelName,
+          analysisModelVersion,
+          DEFAULT_ANALYSIS_INSTRUCTIONS,
+          analysisContext
+        );
+    
+        result.analysis = {
+          model: analyzerModelName,
+          model_id: finalAnalyzerModelId,
+          version: analysisModelVersion,
+          text: analysisResult.text,
+          encoded_text: Buffer.from(analysisResult.text).toString('base64')
+        };
+      } catch (error) {
+        console.error('Analysis error:', error);
+        result.analysis = {
+          error: `Analysis failed: ${error.message}`,
+          model: analyze_responses_model
+        };
+      }
     }
 
     return NextResponse.json(result);
-    
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -189,7 +221,9 @@ async function calculateMetrics(responses) {
   // Calculate basic metrics
   for (const response of responses) {
     const model = response.model;
-    const text = response.text;
+    
+    // Decode the base64 text for analysis
+    const text = Buffer.from(response.encoded_text, 'base64').toString();
     
     // Response length (characters)
     metrics.response_length[model] = text.length;
@@ -232,21 +266,23 @@ async function calculateMetrics(responses) {
   }
   
   // Calculate sentiment (async)
-  for (const response of responses) {
-    try {
-      const sentiment = await analyzeSentiment(response.text, response.model);
+  try {
+    for (const response of responses) {
+      const text = Buffer.from(response.encoded_text, 'base64').toString();
+      const sentiment = await analyzeSentiment(text, response.model);
+      
       metrics.sentiment[response.model] = {
         score: sentiment.score,
         magnitude: sentiment.magnitude || 0,
         using_gcp_api: sentiment.success || false
       };
-    } catch (error) {
-      console.error(`Error analyzing sentiment for ${response.model}:`, error);
+    }
+  } catch (error) {
+    console.error(`Error analyzing sentiment:`, error);
+   
+    for (const response of responses) {
       metrics.sentiment[response.model] = {
-        error: error.message,
-        score: 0,
-        magnitude: 0,
-        using_gcp_api: false
+        error: `Sentiment analysis failed: ${error.message}`
       };
     }
   }

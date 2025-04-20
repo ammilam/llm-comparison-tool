@@ -6,6 +6,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
+import { MODEL_NAME_TO_ID } from "../config/models";
 
 export default function AnalysisPanel({
   responses,
@@ -41,10 +42,7 @@ export default function AnalysisPanel({
 
   // Helper function to get model ID from name
   const getModelIdFromName = (name) => {
-    if (name === "Claude Sonnet") return "claude";
-    if (name === "Gemini") return "gemini";
-    if (name === "ChatGPT") return "chatgpt";
-    return "chatgpt";
+    return MODEL_NAME_TO_ID[name] || "chatgpt"; // Default to chatgpt if not found
   };
 
   const handleAnalyze = () => {
