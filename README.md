@@ -131,30 +131,76 @@ gcloud services enable language.googleapis.com
 
 ## API Usage
 
-The tool provides a RESTful API for programmatic access to all its features.
+The tool provides a RESTful API for programmatic access to all its features.The LLM Comparison Tool API provides programmatic access to compare responses from multiple large language models using a single request. This RESTful API supports all the features available in the UI, including model selection, response analysis, and performance metrics.
 
-### API Endpoints
+## Endpoint
 
 ```
 POST /api/compare
-GET /api/compare
 ```
 
-### Request Parameters
+## Request Format
+
+Send a POST request with a JSON body containing the following parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `prompt` | String | Yes | The prompt to send to the language models |
-| `system_instructions` | String | No | System instructions to guide model behavior |
-| models | Array | Yes | Array of models to query. Supported: "claude", "gemini", "chatgpt" |
-| `temperature` | Number | No | Temperature parameter (0.0-1.0). Default: 0.7 |
-| `max_tokens` | Number | No | Maximum tokens to generate. Default: 2048 |
+| `prompt` | String | Yes | The text prompt to send to the language models |
+| `system_instructions` | String | No | Optional system instructions to guide model behavior |
+| models | Array | Yes | Array of model IDs to query (e.g., `["claude", "gemini", "chatgpt"]`) |
+| `temperature` | Number | No | Temperature parameter for response generation (0.0-1.0). Default: 0.7 |
+| `max_tokens` | Number | No | Maximum tokens to generate for each response. Default: 2048 |
 | `analyze_responses` | Boolean | No | Whether to analyze the responses. Default: false |
-| `analyze_responses_model` | String | No | Model to use for analysis. Default: "ChatGPT" |
-| `metrics` | Boolean | No | Whether to return metrics about the responses. Default: false |
-| `model_versions` | Object | No | Specify model versions, e.g. `{"claude": "claude-3-5-sonnet-20240620"}` |
+| `analyze_responses_model` | String | No | Model ID to use for analysis. Default: "chatgpt" |
+| `metrics` | Boolean | No | Whether to return performance metrics. Default: false |
+| `model_versions` | Object | No | Specific model versions to use, keyed by model ID |
 
-### Example API Call with curl
+## Supported Models
+
+The API supports the following model IDs:
+
+| Model ID | Provider | Default Version |
+|----------|----------|----------------|
+| `claude` | Anthropic | claude-3-7-sonnet-20250219 |
+| `gemini` | Google | gemini-2.0-flash-001 |
+| `chatgpt` | OpenAI | gpt-4o |
+
+## Model Versions
+
+Each model supports multiple versions that can be specified in the `model_versions` parameter:
+
+### Claude Versions
+- `claude-3-7-sonnet-20250219` (default)
+- `claude-3-5-sonnet-20240620`
+- `claude-3-opus-20240229`
+- `claude-3-haiku-20240307`
+
+### Gemini Versions
+- `gemini-2.0-flash-001` (default)
+- `gemini-2.0-pro-001`
+- `gemini-1.5-flash-001`
+- `gemini-1.5-pro-001`
+
+### ChatGPT Versions
+- `gpt-4o` (default)
+- `gpt-4-turbo`
+- `gpt-4`
+- `gpt-3.5-turbo`
+
+## Example Requests
+
+### Basic Request
+
+```bash
+curl -X POST http://localhost:3000/api/compare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Explain quantum computing in simple terms.",
+    "models": ["chatgpt"]
+  }'
+```
+
+### Full-Featured Request
 
 ```bash
 curl -X POST http://localhost:3000/api/compare \
@@ -166,20 +212,36 @@ curl -X POST http://localhost:3000/api/compare \
     "temperature": 0.5,
     "max_tokens": 1000,
     "analyze_responses": true,
+    "analyze_responses_model": "chatgpt",
     "metrics": true,
     "model_versions": {
-      "claude": "claude-3-7-sonnet-20250219",
+      "claude": "claude-3-5-sonnet-20240620",
       "gemini": "gemini-2.0-flash-001",
       "chatgpt": "gpt-4o"
     }
   }'
 ```
 
-### Example API Response
+### Model Analysis
+
+```bash
+curl -X POST http://localhost:3000/api/compare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "What are the ethical concerns of AI?",
+    "models": ["claude", "chatgpt"],
+    "analyze_responses": true,
+    "analyze_responses_model": "gemini"
+  }'
+```
+
+## Response Format
+
+The API returns a JSON object with the following structure:
 
 ```json
 {
-  "timestamp": "2025-04-19T12:34:56.789Z",
+  "timestamp": "2025-04-20T15:30:45.789Z",
   "prompt": "Explain quantum computing in simple terms.",
   "system_instructions": "You are a helpful assistant that explains complex topics simply.",
   "models_requested": ["claude", "gemini", "chatgpt"],
@@ -192,113 +254,98 @@ curl -X POST http://localhost:3000/api/compare \
       "encoded_text": "UXVhbnR1bSBjb21wdXRpbmcgaXMuLi4=",
       "responseTime": 1234,
       "promptTokens": 15,
-      "completionTokens": 150
+      "completionTokens": 150,
+      "totalTokens": 165
     },
-    {
-      "model": "Gemini",
-      "text": "Quantum computing uses...",
-      "encoded_text": "UXVhbnR1bSBjb21wdXRpbmcgdXNlcy4uLg==",
-      "responseTime": 1456,
-      "promptTokens": 12,
-      "completionTokens": 142
-    },
-    {
-      "model": "ChatGPT",
-      "text": "Think of quantum computing as...",
-      "encoded_text": "VGhpbmsgb2YgcXVhbnR1bSBjb21wdXRpbmcgYXMuLi4=",
-      "responseTime": 980,
-      "promptTokens": 14,
-      "completionTokens": 165
-    }
-  ],
-  "metrics": {
-    "response_length": {
-      "Claude Sonnet": 450,
-      "Gemini": 520,
-      "ChatGPT": 480
-    },
-    "word_count": {
-      "Claude Sonnet": 75,
-      "Gemini": 87,
-      "ChatGPT": 80
-    },
-    "token_usage": {
-      "Claude Sonnet": {
-        "prompt_tokens": 15,
-        "completion_tokens": 150,
-        "total_tokens": 165
-      },
-      "Gemini": {
-        "prompt_tokens": 12,
-        "completion_tokens": 142,
-        "total_tokens": 154
-      },
-      "ChatGPT": {
-        "prompt_tokens": 14,
-        "completion_tokens": 165,
-        "total_tokens": 179
-      }
-    },
-    "response_time": {
-      "Claude Sonnet": {
-        "ms": 1234,
-        "seconds": 1.234
-      },
-      "Gemini": {
-        "ms": 1456,
-        "seconds": 1.456
-      },
-      "ChatGPT": {
-        "ms": 980,
-        "seconds": 0.98
-      }
-    },
-    "complexity": {
-      "Claude Sonnet": {
-        "avg_word_length": 5.2,
-        "avg_sentence_length": 15.3,
-        "complexity_score": 8.7
-      },
-      "Gemini": {
-        "avg_word_length": 4.9,
-        "avg_sentence_length": 16.2,
-        "complexity_score": 8.6
-      },
-      "ChatGPT": {
-        "avg_word_length": 5.0,
-        "avg_sentence_length": 17.8,
-        "complexity_score": 9.1
-      }
-    },
-    "sentiment": {
-      "Claude Sonnet": {
-        "score": 0.2,
-        "magnitude": 0.8,
-        "using_gcp_api": true
-      },
-      "Gemini": {
-        "score": 0.3,
-        "magnitude": 0.7,
-        "using_gcp_api": true
-      },
-      "ChatGPT": {
-        "score": 0.1,
-        "magnitude": 0.9,
-        "using_gcp_api": true
-      }
-    }
+    // Additional model responses...
+  ]
+}
+```
+
+### Response with Metrics
+
+When `metrics: true` is specified, the response includes a `metrics` object:
+
+```json
+"metrics": {
+  "response_length": {
+    "Claude Sonnet": 450,
+    "Gemini": 520,
+    "ChatGPT": 480
   },
-  "analysis": {
-    "model": "ChatGPT",
-    "text": "In comparing the responses...",
-    "encoded_text": "SW4gY29tcGFyaW5nIHRoZSByZXNwb25zZXMuLi4="
+  "word_count": {
+    "Claude Sonnet": 75,
+    "Gemini": 87,
+    "ChatGPT": 80
+  },
+  "token_usage": {
+    "Claude Sonnet": {
+      "prompt_tokens": 15,
+      "completion_tokens": 150,
+      "total_tokens": 165
+    }
+    // Other models...
+  },
+  "response_time": {
+    "Claude Sonnet": {
+      "ms": 1234,
+      "seconds": 1.234
+    }
+    // Other models...
+  },
+  "complexity": {
+    "Claude Sonnet": {
+      "avg_word_length": 5.2,
+      "avg_sentence_length": 15.3,
+      "complexity_score": 8.7
+    }
+    // Other models...
+  },
+  "sentiment": {
+    "Claude Sonnet": {
+      "score": 0.2,
+      "magnitude": 0.8,
+      "using_gcp_api": true
+    }
+    // Other models...
   }
 }
 ```
 
-### API Error Handling
+### Response with Analysis
 
-For invalid requests or processing errors, the API will return an appropriate HTTP status code and an error message:
+When `analyze_responses: true` is specified, the response includes an `analysis` object:
+
+```json
+"analysis": {
+  "model": "ChatGPT",
+  "model_id": "chatgpt",
+  "version": "gpt-4o",
+  "text": "In comparing the responses...",
+  "encoded_text": "SW4gY29tcGFyaW5nIHRoZSByZXNwb25zZXMuLi4="
+}
+```
+
+## Working with Response Data
+
+### Decoding Base64 Text
+
+All response texts are provided in both plain text (`text`) and base64-encoded format (`encoded_text`). The base64 encoding ensures proper handling of special characters and formatting. To decode:
+
+#### JavaScript
+```javascript
+const decodedText = Buffer.from(response.encoded_text, 'base64').toString();
+```
+
+#### Python
+```python
+import base64
+decoded_text = base64.b64decode(response.encoded_text).decode('utf-8')
+```
+
+## Error Handling
+
+For invalid requests or processing errors, the API returns an appropriate HTTP status code and an error message:
 
 ```json
 {
@@ -306,10 +353,44 @@ For invalid requests or processing errors, the API will return an appropriate HT
 }
 ```
 
-Common error codes:
-- 400: Bad Request (missing required parameters)
-- 401: Unauthorized (API credentials issue)
-- 500: Internal Server Error
+### Common Error Codes
+
+| Status Code | Description |
+|------------|-------------|
+| 400 | Bad Request (missing required parameters or invalid format) |
+| 401 | Unauthorized (API credentials issue) |
+| 500 | Internal Server Error |
+
+### Model-Specific Failures
+
+If some models succeed but others fail, the API returns results for the successful models and details about the failures:
+
+```json
+{
+  "models_requested": ["claude", "gemini", "chatgpt"],
+  "models_processed": ["claude", "chatgpt"],
+  "models_failed": [
+    {
+      "model": "gemini",
+      "error": "API key not configured for Gemini"
+    }
+  ],
+  "responses": [
+    // Successful responses...
+  ]
+}
+```
+
+## Authentication and Rate Limits
+
+The API uses the same authentication methods as the main application:
+
+1. For Claude models: Requires an Anthropic API key
+2. For Gemini models: Requires Google Cloud authentication
+3. For ChatGPT models: Requires an OpenAI API key
+
+Rate limits are determined by your subscription plan with each provider.
+
 
 
 ## Extending with New Models

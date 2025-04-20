@@ -5,6 +5,8 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { VertexAI } from '@google-cloud/vertexai';
 import { cookies } from 'next/headers';
+import { MODEL_NAME_TO_ID, MODEL_CONFIGS } from "../config/models";
+
 const execAsync = promisify(exec);
 
 // Helper to get credentials from either env vars or client-side storage
@@ -278,6 +280,21 @@ export async function analyzeResponses(
 ) {
   try {
 
+    let selectedModelVersion = modelVersion;
+
+    if (!selectedModelVersion) {
+      // Get the model ID from the name
+      const modelId = MODEL_NAME_TO_ID[analyzerModel];
+      
+      if (!modelId) {
+        console.warn(`Unknown model name: ${analyzerModel}, falling back to ChatGPT`);
+      }
+      
+      // Get the default version from the config
+      const actualModelId = modelId || "chatgpt";
+      selectedModelVersion = MODEL_CONFIGS[actualModelId].defaultVersion;
+    }
+
     // Use custom instructions if provided, otherwise use default
     let systemInstructions = customInstructions;
 
@@ -354,14 +371,14 @@ export async function analyzeResponses(
     let analysisResult;
     switch (analyzerModel) {
       case "Claude Sonnet":
-        analysisResult = await callSonnet(analysisPrompt, "", 0.3, 8000, modelVersion);
+        analysisResult = await callSonnet(analysisPrompt, "", 0.3, 4096, modelVersion);
         break;
       case "Gemini":
-        analysisResult = await callGemini(analysisPrompt, "", 0.3, 8000, modelVersion);
+        analysisResult = await callGemini(analysisPrompt, "", 0.3, 4096, modelVersion);
         break;
       case "ChatGPT":
       default:
-        analysisResult = await callChatGPT(analysisPrompt, "", 0.3, 8000, modelVersion);
+        analysisResult = await callChatGPT(analysisPrompt, "", 0.3, 4096, modelVersion);
     }
 
     return {
