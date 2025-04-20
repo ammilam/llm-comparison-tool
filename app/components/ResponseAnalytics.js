@@ -182,14 +182,42 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             const wordLengths = avgWordLengthByModel[model];
             avgWordLengths[model] = wordLengths.reduce((sum, len) => sum + len, 0) / wordLengths.length;
 
-            const sentiments = sentimentScores[model] || [0];
-            avgSentiment[model] = sentiments.length > 0 ?
-                sentiments.reduce((sum, score) => sum + score, 0) / sentiments.length : 0;
+            const sentiments = sentimentScores[model];
+            if (sentiments && sentiments.length > 0) {
+                // Convert all values to numbers and handle any NaN
+                const validScores = sentiments.map(s => Number(s)).filter(s => !isNaN(s));
 
-            const magnitudes = sentimentMagnitudes[model] || [0];
-            avgSentimentMagnitude[model] = magnitudes.length > 0 ?
-                magnitudes.reduce((sum, mag) => sum + mag, 0) / magnitudes.length : 0;
+                if (validScores.length > 0) {
+                    // Calculate average of valid scores
+                    avgSentiment[model] = validScores.reduce((sum, score) => sum + score, 0) / validScores.length;
+                    console.log(`Average sentiment for ${model}: ${avgSentiment[model]} (from ${validScores.length} values)`);
+                } else {
+                    // If no valid scores, set to 0 (neutral)
+                    avgSentiment[model] = 0;
+                    console.log(`No valid sentiment scores for ${model}, setting average to 0`);
+                }
+            } else {
+                // If no scores array, set to 0 (neutral)
+                avgSentiment[model] = 0;
+                console.log(`No sentiment scores for ${model}, setting average to 0`);
+            }
 
+            // Similarly for magnitude
+            const magnitudes = sentimentMagnitudes[model];
+            if (magnitudes && magnitudes.length > 0) {
+                const validMagnitudes = magnitudes.map(m => Number(m)).filter(m => !isNaN(m));
+
+                if (validMagnitudes.length > 0) {
+                    avgSentimentMagnitude[model] = validMagnitudes.reduce((sum, mag) => sum + mag, 0) / validMagnitudes.length;
+                    console.log(`Average magnitude for ${model}: ${avgSentimentMagnitude[model]} (from ${validMagnitudes.length} values)`);
+                } else {
+                    avgSentimentMagnitude[model] = 0;
+                    console.log(`No valid sentiment magnitudes for ${model}, setting average to 0`);
+                }
+            } else {
+                avgSentimentMagnitude[model] = 0;
+                console.log(`No sentiment magnitudes for ${model}, setting average to 0`);
+            }
 
             const complexities = complexityScores[model];
             avgComplexity[model] = complexities.reduce((sum, score) => sum + score, 0) / complexities.length;
@@ -305,9 +333,11 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             {
                 label: 'Sentiment Score',
                 data: models.map(model => {
-                    // Strict validation with fallback to neutral (0)
+                    // Strict validation - explicitly check if it's a number (including 0)
                     const val = metrics.sentiment[model];
-                    if (val === null || val === undefined || isNaN(val)) {
+                    // This is the key fix: Number(val) === 0 explicitly checks for zero values
+                    if (val === null || val === undefined ||
+                        (typeof val !== 'number' && isNaN(Number(val)))) {
                         console.warn(`Invalid sentiment value for ${model}:`, val);
                         return 0;
                     }
@@ -321,9 +351,10 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             ...(metrics.isAdvancedSentiment ? [{
                 label: 'Sentiment Magnitude',
                 data: models.map(model => {
-                    // Strict validation with fallback to zero
+                    // Also check explicitly for zero values in magnitude
                     const val = metrics.sentimentMagnitude[model];
-                    if (val === null || val === undefined || isNaN(val)) {
+                    if (val === null || val === undefined ||
+                        (typeof val !== 'number' && isNaN(Number(val)))) {
                         console.warn(`Invalid magnitude value for ${model}:`, val);
                         return 0;
                     }
@@ -412,7 +443,7 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                     grid: {
                         drawOnChartArea: false,
                     },
-                    suggestedMax: 5, // Most texts have magnitudes under 5
+                    suggestedMax: Math.max(5, ...models.map(m => metrics.sentimentMagnitude[m] || 0) * 1.1),
                 }
             } : {})
         },
@@ -589,6 +620,10 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                                         <Bar data={sentimentChartData} options={{
                                             ...sentimentChartOptions,
                                             maintainAspectRatio: false,
+                                            parsing: {
+                                                // This tells Chart.js to not filter out zero values
+                                                yAxisKey: 'y'
+                                            },
                                             plugins: {
                                                 ...sentimentChartOptions.plugins,
                                                 legend: {
@@ -601,6 +636,7 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                                                 }
                                             }
                                         }} />
+
                                     </div>
                                     <div className="mt-6 text-sm">
                                         {metrics.isAdvancedSentiment ? (

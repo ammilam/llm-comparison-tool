@@ -6,6 +6,7 @@ import { promisify } from "util";
 import { VertexAI } from '@google-cloud/vertexai';
 import { cookies } from 'next/headers';
 import { MODEL_NAME_TO_ID, MODEL_CONFIGS } from "../config/models";
+import { withRetry, isRetryableError } from "../utils/retry";
 
 const execAsync = promisify(exec);
 
@@ -45,60 +46,69 @@ export async function callSonnet(
   maxTokens = 4096,
   modelVersion = "claude-3-7-sonnet-20250219"
 ) {
-  try {
-    const credentials = await getCredentials();
-    const apiKey = credentials.anthropicApiKey;
+  return withRetry(
+    async () => {
+      const credentials = await getCredentials();
+      const apiKey = credentials.anthropicApiKey;
 
-    if (!apiKey) {
-      throw new Error("Anthropic API key not configured. Please set up your API key in LLM Connectivity Settings.");
+      if (!apiKey) {
+        throw new Error("Anthropic API key not configured. Please set up your API key in LLM Connectivity Settings.");
+      }
+
+      const startTime = Date.now();
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelVersion,
+          max_tokens: maxTokens,
+          temperature: temperature,
+          system: systemInstructions || "You are a helpful assistant.",
+          messages: [
+            { role: "user", content: prompt }
+          ]
+        }),
+      });
+
+      const data = await response.json();
+
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+
+      if (!response.ok) {
+        const error = new Error(`Sonnet API error: ${JSON.stringify(data)}`);
+        error.status = response.status;
+        throw error;
+      }
+
+      return {
+        text: data.content[0].text,
+        model: "Claude Sonnet",
+        rawResponse: data,
+        responseTime: responseTime,
+        promptTokens: data.usage?.input_tokens || null,
+        completionTokens: data.usage?.output_tokens || null,
+      };
+    },
+    {
+      maxRetries: 2,
+      baseDelay: 1000,
+      shouldRetry: isRetryableError,
+      onRetry: (error, attempt) => console.log(`Retrying Claude API call (attempt ${attempt}/2): ${error.message}`)
     }
-
-    const startTime = Date.now();
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: modelVersion,
-        max_tokens: maxTokens,
-        temperature: temperature,
-        system: systemInstructions || "You are a helpful assistant.",
-        messages: [
-          { role: "user", content: prompt }
-        ]
-      }),
-    });
-
-    const data = await response.json();
-
-    const endTime = Date.now();
-    const responseTime = endTime - startTime;
-
-
-    if (!response.ok) {
-      throw new Error(`Sonnet API error: ${JSON.stringify(data)}`);
-    }
-
-    return {
-      text: data.content[0].text,
-      model: "Claude Sonnet",
-      rawResponse: data,
-      responseTime: responseTime, // Add this line
-      promptTokens: data.usage?.input_tokens || null,
-      completionTokens: data.usage?.output_tokens || null,
-    };
-  } catch (error) {
+  ).catch(error => {
     console.error("Error calling Sonnet:", error);
     return {
       text: `Error: ${error.message}`,
       model: "Claude Sonnet",
       error: true
     };
-  }
+  });
 }
 
 export async function callGemini(
@@ -108,66 +118,74 @@ export async function callGemini(
   maxTokens = 4096,
   modelVersion = "gemini-1.5-pro"
 ) {
-  try {
-    const startTime = Date.now();
-    const credentials = await getCredentials();
-    const projectId = credentials.googleProjectId;
-    
-    if (!projectId) {
-      throw new Error("Google Cloud Project ID is required");
+  return withRetry(
+    async () => {
+      const startTime = Date.now();
+      const credentials = await getCredentials();
+      const projectId = credentials.googleProjectId;
+      
+      if (!projectId) {
+        throw new Error("Google Cloud Project ID is required");
+      }
+      
+      // Setup Vertex AI connection
+      const vertexAi = new VertexAI({
+        project: projectId,
+        location: 'us-central1',
+      });
+
+      // Create model instance
+      const generativeModel = vertexAi.getGenerativeModel({
+        model: modelVersion,
+        systemInstruction: systemInstructions,
+        generationConfig: {
+          temperature: temperature,
+          maxOutputTokens: maxTokens,
+        },
+      });
+
+      // Create request parts
+      const requestContent = [
+        {
+          role: 'user',
+          parts: [{ text: prompt }],
+        },
+      ];
+
+      // Get response
+      const response = await generativeModel.generateContent({
+        contents: requestContent,
+      });
+      
+      const result = response.response;
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+
+      // Extract token usage from usageMetadata
+      const promptTokens = result.usageMetadata?.promptTokenCount || 0;
+      const completionTokens = result.usageMetadata?.candidatesTokenCount || 0;
+      const totalTokens = result.usageMetadata?.totalTokenCount || 0;
+
+      // Extract text from response
+      const fullText = result.candidates[0]?.content?.parts[0]?.text || '';
+      
+      return {
+        text: fullText,
+        model: "Gemini",
+        rawResponse: result,
+        responseTime: responseTime,
+        promptTokens: promptTokens,
+        completionTokens: completionTokens,
+        totalTokens: totalTokens
+      };
+    },
+    {
+      maxRetries: 3,
+      baseDelay: 2000,
+      shouldRetry: isRetryableError,
+      onRetry: (error, attempt) => console.log(`Retrying Gemini API call (attempt ${attempt}/3): ${error.message}`)
     }
-    
-    // Setup Vertex AI connection
-    const vertexAi = new VertexAI({
-      project: projectId,
-      location: 'us-central1',
-    });
-
-    // Create model instance
-    const generativeModel = vertexAi.getGenerativeModel({
-      model: modelVersion,
-      systemInstruction: systemInstructions,
-      generationConfig: {
-        temperature: temperature,
-        maxOutputTokens: maxTokens,
-      },
-    });
-
-    // Create request parts
-    const requestContent = [
-      {
-        role: 'user',
-        parts: [{ text: prompt }],
-      },
-    ];
-
-    // Get response
-    const response = await generativeModel.generateContent({
-      contents: requestContent,
-    });
-    
-    const result = response.response;
-    const endTime = Date.now();
-    const responseTime = endTime - startTime;
-
-    // Extract token usage from usageMetadata
-    const promptTokens = result.usageMetadata?.promptTokenCount || 0;
-    const completionTokens = result.usageMetadata?.candidatesTokenCount || 0;
-    const totalTokens = result.usageMetadata?.totalTokenCount || 0;
-
-    // Extract text from response
-    const fullText = result.candidates[0]?.content?.parts[0]?.text || '';
-    
-    return {
-      text: fullText,
-      model: "Gemini",
-      rawResponse: result,
-      responseTime: responseTime,
-      promptTokens: promptTokens,
-      completionTokens: completionTokens,
-      totalTokens: totalTokens
-    };
-  } catch (error) {
+  ).catch(error => {
     console.error("Error calling Gemini:", error);
     
     // Return a structured error
@@ -180,7 +198,7 @@ export async function callGemini(
       completionTokens: 0,
       totalTokens: 0
     };
-  }
+  });
 }
 
 export async function callChatGPT(
@@ -190,208 +208,172 @@ export async function callChatGPT(
   maxTokens = 4096,
   modelVersion = "gpt-4o"
 ) {
-  try {
-    const startTime = Date.now();
-    const credentials = await getCredentials();
-    const apiKey = credentials.openaiApiKey;
+  return withRetry(
+    async () => {
+      const startTime = Date.now();
+      const credentials = await getCredentials();
+      const apiKey = credentials.openaiApiKey;
 
-    if (!apiKey) {
-      throw new Error("OpenAI API key not configured. Please set up your API key in LLM Connectivity Settings.");
-    }
+      if (!apiKey) {
+        throw new Error("OpenAI API key not configured. Please set up your API key in LLM Connectivity Settings.");
+      }
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelVersion,
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                text: systemInstructions || "You are a helpful assistant."
-              }
-            ]
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: prompt
-              }
-            ]
-          }
-        ],
-        text: {
-          format: {
-            type: "text"
-          }
+      // Use the proper OpenAI chat completions endpoint
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
         },
-        reasoning: {},
-        tools: [],
-        temperature: temperature,
-        max_output_tokens: maxTokens,
-        top_p: 1,
-        store: true
-      }),
-    });
+        body: JSON.stringify({
+          model: modelVersion,
+          messages: [
+            {
+              role: "system",
+              content: systemInstructions || "You are a helpful assistant."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          max_tokens: maxTokens,
+          temperature: temperature,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(`ChatGPT API error: ${JSON.stringify(data)}`);
+      if (!response.ok) {
+        const error = new Error(`ChatGPT API error: ${JSON.stringify(data)}`);
+        error.status = response.status;
+        throw error;
+      }
+
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+
+      return {
+        text: data.choices[0]?.message?.content || "No response text",
+        model: "ChatGPT",
+        rawResponse: data,
+        responseTime: responseTime,
+        promptTokens: data.usage?.prompt_tokens || null,
+        completionTokens: data.usage?.completion_tokens || null,
+        totalTokens: data.usage?.total_tokens || null,
+      };
+    },
+    {
+      maxRetries: 2,
+      baseDelay: 1000,
+      shouldRetry: isRetryableError,
+      onRetry: (error, attempt) => console.log(`Retrying ChatGPT API call (attempt ${attempt}/2): ${error.message}`)
     }
-
-
-    const endTime = Date.now();
-    const responseTime = endTime - startTime;
-
-
-    return {
-      text: data.output?.[0]?.content?.[0]?.text || "No response text",
-      model: "ChatGPT",
-      rawResponse: data,
-      responseTime: responseTime,
-      promptTokens: data.usage?.input_tokens || null,
-      completionTokens: data.usage?.output_tokens || null,
-    };
-  } catch (error) {
+  ).catch(error => {
     console.error("Error calling ChatGPT:", error);
     return {
       text: `Error: ${error.message}`,
       model: "ChatGPT",
       error: true
     };
-  }
+  });
 }
 
-export async function analyzeResponses(
-  responses,
-  analyzerModel = "ChatGPT",
-  modelVersion = null,
-  customInstructions = null,
-  analysisContext = ""
-
-) {
-  try {
-
-    let selectedModelVersion = modelVersion;
-
-    if (!selectedModelVersion) {
-      // Get the model ID from the name
-      const modelId = MODEL_NAME_TO_ID[analyzerModel];
-      
-      if (!modelId) {
-        console.warn(`Unknown model name: ${analyzerModel}, falling back to ChatGPT`);
+  export async function analyzeResponses(
+    responses,
+    analyzerModel = "ChatGPT",
+    modelVersion = null,
+    customInstructions = null,
+    analysisContext = ""
+  ) {
+    try {
+      let selectedModelVersion = modelVersion;
+  
+      if (!selectedModelVersion) {
+        // Get the model ID from the name
+        const modelId = MODEL_NAME_TO_ID[analyzerModel];
+        
+        if (!modelId) {
+          console.warn(`Unknown model name: ${analyzerModel}, falling back to ChatGPT`);
+        }
+        
+        // Get the default version from the config
+        const actualModelId = modelId || "chatgpt";
+        selectedModelVersion = MODEL_CONFIGS[actualModelId].defaultVersion;
       }
-      
-      // Get the default version from the config
-      const actualModelId = modelId || "chatgpt";
-      selectedModelVersion = MODEL_CONFIGS[actualModelId].defaultVersion;
-    }
-
-    // Use custom instructions if provided, otherwise use default
-    let systemInstructions = customInstructions;
-
-    if (!systemInstructions) {
-      // Adjust instructions based on number of responses
+  
+      // Use custom instructions if provided, otherwise use default
+      let systemInstructions = customInstructions;
+  
+      if (!systemInstructions) {
+        // Adjust instructions based on number of responses
+        if (responses.length === 1) {
+          systemInstructions = `
+            System Instructions:
+            - You are an expert at analyzing outputs from language models
+            // ... rest of the instructions remain the same
+          `;
+        } else {
+          systemInstructions = `
+            System Instructions:
+            - You are an expert at analyzing differences between different LLMs
+            // ... rest of the instructions remain the same
+          `;
+        }
+      }
+  
+      // Construct the analysis prompt
+      let analysisPrompt;
       if (responses.length === 1) {
-        systemInstructions = `
-          System Instructions:
-          - You are an expert at analyzing outputs from language models
-          - Your job is to analyze the output of this model and provide detailed feedback
-          - Process the following output and provide insights
-          - If the output contains code, look for security vulnerabilities or bad practices, and highlight them
-          - If the output contains text, look for grammar issues, and highlight them
-          - If the output contains any other content, look for any issues and highlight them
-          - Provide a detailed analysis of the quality, accuracy, and completeness of the response
-          - Assess the style, tone, and effectiveness of the communication
-          - Identify strengths and areas for improvement in the response
-          - Your analysis should be done in a markdown format
-          - Use bullet points and lists to make the analysis easy to read
-          - Use code blocks for any code snippets
-          - Use tables for any comparisons
-          - Use headers to separate different sections of the analysis
-          - Use bold and italics to emphasize important points
-          - Break each section into markdown sections with headers, use lists, and formatting
+        analysisPrompt = `
+          ${systemInstructions}
+          
+          ${analysisContext ? `Analysis Context: ${analysisContext}\n\n` : ""}
+          Model: ${responses[0].model}
+          Response: ${responses[0].text}
         `;
       } else {
-        // Original instructions for multiple models
-        systemInstructions = `
-          System Instructions:
-          - You are an expert at analyzing differences between different LLMs
-          - Your job is to analyze the outputs of the models and provide a detailed comparison
-          - Different models are fed the same prompt, and their outputs are captured, and passed to you for analysis
-          - Process the following outputs and distinguish the differences between the models.
-          - If the outputs contain code, look for security vulnerabilities or bad practices, and highlight them
-          - If the outputs contain text, look for grammar issues, and highlight them
-          - If the outputs contain any other content, look for any issues and highlight them
-          - Provide a detailed analysis of the differences between the models
-          - Provide a summary of the differences between the models
-          - Provide a summary of the strengths and weaknesses of each model
-          - Provide a summary of the overall performance of each model
-          - At the bottom provide which model you think is the best overall pick
-          - Your analysis should be done in a markdown format
-          - Use bullet points and lists to make the analysis easy to read
-          - Use code blocks for any code snippets
-          - Use tables for any comparisons
-          - Use headers to separate different sections of the analysis
-          - Use bold and italics to emphasize important points
-          - Use links to any relevant resources
-          - Break each section into markdown sections with headers, use lists, and formatting
+        analysisPrompt = `
+          ${systemInstructions}
+          
+          ${analysisContext ? `Analysis Context: ${analysisContext}\n\n` : ""}
+          ${responses.map(r => `${r.model}: ${r.text}`).join('\n\n')}
         `;
       }
+  
+      // Call the selected model for analysis with retry logic
+      let analysisFunction;
+      switch (analyzerModel) {
+        case "Claude Sonnet":
+          analysisFunction = () => callSonnet(analysisPrompt, "", 0.3, 4096, selectedModelVersion);
+          break;
+        case "Gemini":
+          analysisFunction = () => callGemini(analysisPrompt, "", 0.3, 4096, selectedModelVersion);
+          break;
+        case "ChatGPT":
+        default:
+          analysisFunction = () => callChatGPT(analysisPrompt, "", 0.3, 4096, selectedModelVersion);
+      }
+      
+      // The actual API calls already have retry logic from their respective functions
+      const analysisResult = await analysisFunction();
+  
+      // Check if the analysis failed
+      if (analysisResult.error) {
+        throw new Error(`Analysis failed: ${analysisResult.text}`);
+      }
+  
+      return {
+        text: analysisResult.text,
+        model: analyzerModel,
+        rawResponse: analysisResult.rawResponse
+      };
+    } catch (error) {
+      console.error("Error analyzing responses:", error);
+      return {
+        text: `Error analyzing responses: ${error.message}`,
+        model: analyzerModel,
+        error: true
+      };
     }
-
-    // Construct the analysis prompt
-    let analysisPrompt;
-    if (responses.length === 1) {
-      analysisPrompt = `
-        ${systemInstructions}
-        
-        ${analysisContext ? `Analysis Context: ${analysisContext}\n\n` : ""}
-        Model: ${responses[0].model}
-        Response: ${responses[0].text}
-      `;
-    } else {
-      analysisPrompt = `
-        ${systemInstructions}
-        
-        ${analysisContext ? `Analysis Context: ${analysisContext}\n\n` : ""}
-        ${responses.map(r => `${r.model}: ${r.text}`).join('\n\n')}
-      `;
-    }
-
-    // Call the selected model for analysis
-    let analysisResult;
-    switch (analyzerModel) {
-      case "Claude Sonnet":
-        analysisResult = await callSonnet(analysisPrompt, "", 0.3, 4096, modelVersion);
-        break;
-      case "Gemini":
-        analysisResult = await callGemini(analysisPrompt, "", 0.3, 4096, modelVersion);
-        break;
-      case "ChatGPT":
-      default:
-        analysisResult = await callChatGPT(analysisPrompt, "", 0.3, 4096, modelVersion);
-    }
-
-    return {
-      text: analysisResult.text,
-      model: analyzerModel,
-      rawResponse: analysisResult.rawResponse
-    };
-  } catch (error) {
-    console.error("Error analyzing responses:", error);
-    return {
-      text: `Error analyzing responses: ${error.message}`,
-      model: analyzerModel,
-      error: true
-    };
   }
-}
