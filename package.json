@@ -1,5 +1,5 @@
 {
-  "name": "model-comparison-tool",
+  "name": "llm-comparison-tool",
   "version": "0.1.0",
   "private": true,
   "scripts": {
