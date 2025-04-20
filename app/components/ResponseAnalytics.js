@@ -114,6 +114,12 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
         setSentimentProcessing(true);
 
         try {
+            Object.keys(modelResponseLengths).forEach(model => {
+                if (!sentimentScores[model]) sentimentScores[model] = [];
+                if (!sentimentMagnitudes[model]) sentimentMagnitudes[model] = [];
+            });
+
+
             // Process sentiment analysis for each response
             for (const response of responses) {
                 if (!response || response.error) continue;
@@ -121,24 +127,43 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                 const model = response.model;
                 const text = response.text;
 
-                // Call the GCP sentiment analysis with fallback
-                const sentiment = await analyzeSentiment(text, model);
+                try {
+                    // Call the GCP sentiment analysis with fallback
+                    const sentiment = await analyzeSentiment(text, model);
 
-                // Update flag if at least one response used GCP sentiment API
-                if (sentiment.success) {
-                    setIsUsingSentimentAPI(true);
+                    // Update flag if at least one response used GCP sentiment API
+                    if (sentiment.success) {
+                        setIsUsingSentimentAPI(true);
+                    }
+
+                    console.log(`Model: ${model}, Score: ${sentiment.score}, Magnitude: ${sentiment.magnitude}`);
+
+                    // Store sentiment scores and magnitudes with stricter validation
+                    sentimentScores[model].push(
+                        sentiment.score !== undefined && sentiment.score !== null ? sentiment.score : 0
+                    );
+                    sentimentMagnitudes[model].push(
+                        sentiment.magnitude !== undefined && sentiment.magnitude !== null ? sentiment.magnitude : 0
+                    );
+                } catch (modelError) {
+                    // If individual model sentiment analysis fails, use neutral values
+                    console.error(`Sentiment analysis failed for ${model}:`, modelError);
+                    sentimentScores[model].push(0);
+                    sentimentMagnitudes[model].push(0);
                 }
-
-                console.log(`Model: ${model}, Score: ${sentiment.score}, Magnitude: ${sentiment.magnitude}`);
-
-
-                // Store sentiment scores and magnitudes
-                sentimentScores[model].push(sentiment.score || 0);
-                sentimentMagnitudes[model].push(sentiment.magnitude || 0);
             }
         } catch (error) {
-            console.error("Error analyzing sentiment:", error);
+            console.error("Error in sentiment analysis:", error);
         } finally {
+            // Ensure every model has at least one sentiment score
+            Object.keys(modelResponseLengths).forEach(model => {
+                if (!sentimentScores[model] || sentimentScores[model].length === 0) {
+                    sentimentScores[model] = [0]; // Default to neutral
+                }
+                if (!sentimentMagnitudes[model] || sentimentMagnitudes[model].length === 0) {
+                    sentimentMagnitudes[model] = [0]; // Default to zero magnitude
+                }
+            });
             setSentimentProcessing(false);
         }
 
@@ -157,11 +182,14 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             const wordLengths = avgWordLengthByModel[model];
             avgWordLengths[model] = wordLengths.reduce((sum, len) => sum + len, 0) / wordLengths.length;
 
-            const sentiments = sentimentScores[model];
-            avgSentiment[model] = sentiments.reduce((sum, score) => sum + score, 0) / sentiments.length;
+            const sentiments = sentimentScores[model] || [0];
+            avgSentiment[model] = sentiments.length > 0 ?
+                sentiments.reduce((sum, score) => sum + score, 0) / sentiments.length : 0;
 
-            const magnitudes = sentimentMagnitudes[model];
-            avgSentimentMagnitude[model] = magnitudes.reduce((sum, mag) => sum + mag, 0) / magnitudes.length;
+            const magnitudes = sentimentMagnitudes[model] || [0];
+            avgSentimentMagnitude[model] = magnitudes.length > 0 ?
+                magnitudes.reduce((sum, mag) => sum + mag, 0) / magnitudes.length : 0;
+
 
             const complexities = complexityScores[model];
             avgComplexity[model] = complexities.reduce((sum, score) => sum + score, 0) / complexities.length;
@@ -277,9 +305,13 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             {
                 label: 'Sentiment Score',
                 data: models.map(model => {
-                    // Ensure we have a valid number, even if it's zero
+                    // Strict validation with fallback to neutral (0)
                     const val = metrics.sentiment[model];
-                    return val !== undefined ? val : 0;
+                    if (val === null || val === undefined || isNaN(val)) {
+                        console.warn(`Invalid sentiment value for ${model}:`, val);
+                        return 0;
+                    }
+                    return val;
                 }),
                 backgroundColor: chartColors.map(c => c.replace('0.8', '0.6')),
                 borderColor: chartColors.map(color => color.replace('0.8', '1')),
@@ -289,9 +321,13 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
             ...(metrics.isAdvancedSentiment ? [{
                 label: 'Sentiment Magnitude',
                 data: models.map(model => {
-                    // Ensure we have a valid number for magnitude
+                    // Strict validation with fallback to zero
                     const val = metrics.sentimentMagnitude[model];
-                    return val !== undefined ? val : 0;
+                    if (val === null || val === undefined || isNaN(val)) {
+                        console.warn(`Invalid magnitude value for ${model}:`, val);
+                        return 0;
+                    }
+                    return val;
                 }),
                 backgroundColor: chartColors.map(c => c.replace('0.8', '0.9')),
                 borderColor: chartColors.map(color => color.replace('0.8', '1')),
@@ -473,56 +509,6 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                 )}
 
 
-                {/* <div className="tabs tabs-boxed mb-4">
-                    <button
-                        className={`tab ${activeTab === 'length' ? 'tab-active' : ''}`}
-                        onClick={() => setActiveTab('length')}
-                    >
-                        Length
-                    </button>
-                    <button
-                        className={`tab ${activeTab === 'words' ? 'tab-active' : ''}`}
-                        onClick={() => setActiveTab('words')}
-                    >
-                        Words
-                    </button>
-                    <button
-                        className={`tab ${activeTab === 'complexity' ? 'tab-active' : ''}`}
-                        onClick={() => setActiveTab('complexity')}
-                    >
-                        Complexity
-                    </button>
-                    <button
-                        className={`tab ${activeTab === 'sentiment' ? 'tab-active' : ''}`}
-                        onClick={() => setActiveTab('sentiment')}
-                    >
-                        Sentiment
-                    </button>
-                    {promptTimeChartData && (
-                        <button
-                            className={`tab ${activeTab === 'promptTimes' ? 'tab-active' : ''}`}
-                            onClick={() => setActiveTab('promptTimes')}
-                        >
-                            Prompt Times
-                        </button>
-                    )}
-                    {Object.keys(metrics.promptTokens).length > 0 && (
-                        <button
-                            className={`tab ${activeTab === 'tokens' ? 'tab-active' : ''}`}
-                            onClick={() => setActiveTab('tokens')}
-                        >
-                            Token Usage
-                        </button>
-                    )}
-                    <button
-                        className={`tab ${activeTab === 'speed' ? 'tab-active' : ''}`}
-                        onClick={() => setActiveTab('speed')}
-                    >
-                        Response Speed
-                    </button>
-
-                </div> */}
-
                 <div className="h-80">
                     {/* Single model case - show a more focused single-model dashboard */}
                     {isSingleModel ? (
@@ -542,11 +528,22 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                             <div className="card bg-base-200 p-4 text-center">
                                 <div className="stat-title">Sentiment</div>
                                 <div className="text-3xl font-bold">
-                                    {metrics.sentiment[models[0]].toFixed(2)}
+                                    {(() => {
+                                        const val = metrics.sentiment[models[0]];
+                                        if (val === null || val === undefined || isNaN(val)) {
+                                            return '0.00';
+                                        }
+                                        return val.toFixed(2);
+                                    })()}
                                 </div>
                                 <div className="text-xs mt-1">
-                                    {metrics.sentiment[models[0]] < -0.25 ? 'Negative' :
-                                        metrics.sentiment[models[0]] > 0.25 ? 'Positive' : 'Neutral'}
+                                    {(() => {
+                                        const val = metrics.sentiment[models[0]];
+                                        if (val === null || val === undefined || isNaN(val)) {
+                                            return 'Neutral';
+                                        }
+                                        return val < -0.25 ? 'Negative' : val > 0.25 ? 'Positive' : 'Neutral';
+                                    })()}
                                 </div>
                             </div>
                             {metrics.promptTokens[models[0]] > 0 && (
@@ -588,21 +585,34 @@ export default function ResponseAnalytics({ responses, responsesByPrompt }) {
                             {activeTab === 'complexity' && <Bar data={complexityChartData} options={chartOptions} />}
                             {activeTab === 'sentiment' && (
                                 <div>
-                                    <Bar data={sentimentChartData} options={sentimentChartOptions} />
-                                    <div className="mt-4 text-sm">
+                                    <div className="h-64">
+                                        <Bar data={sentimentChartData} options={{
+                                            ...sentimentChartOptions,
+                                            maintainAspectRatio: false,
+                                            plugins: {
+                                                ...sentimentChartOptions.plugins,
+                                                legend: {
+                                                    position: 'top',
+                                                    align: 'center',
+                                                    labels: {
+                                                        boxWidth: 12,
+                                                        padding: 15
+                                                    }
+                                                }
+                                            }
+                                        }} />
+                                    </div>
+                                    <div className="mt-6 text-sm">
                                         {metrics.isAdvancedSentiment ? (
-                                            <div className="card bg-base-200 p-4 text-center">
-                                            <div className="stat-title">Sentiment Magnitude</div>
-                                            <div className="text-3xl font-bold">
-                                              {metrics.sentimentMagnitude[models[0]].toFixed(2)}
+                                            <div className="card bg-base-200 p-4">
+                                                <h3 className="font-medium mb-2">About Sentiment Analysis</h3>
+                                                <p>Using Google Cloud Natural Language API for advanced sentiment analysis.</p>
+                                                <ul className="list-disc pl-5 mt-2 text-xs">
+                                                    <li><strong>Score:</strong> -1.0 (negative) to 1.0 (positive)</li>
+                                                    <li><strong>Magnitude:</strong> Overall strength of emotion (0 to infinity)</li>
+                                                    <li>High magnitude with neutral score indicates mixed sentiment</li>
+                                                </ul>
                                             </div>
-                                            <div className="text-xs mt-1">
-                                              {metrics.sentimentMagnitude[models[0]] > 3 ? 'Strong' : 
-                                               metrics.sentimentMagnitude[models[0]] > 1 ? 'Moderate' : 'Mild'} 
-                                              emotional content
-                                            </div>
-                                          </div>
-                                        
                                         ) : (
                                             <>
                                                 <p><strong>Note:</strong> Using basic sentiment analysis based on keyword matching.</p>
