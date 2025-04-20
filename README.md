@@ -22,42 +22,6 @@ This application allows you to test the same prompt against different language m
 - **Responsive Design**: Works seamlessly on both desktop and mobile devices
 - **API Access**: Programmatic access to all features through a RESTful API
 
-## UI
-
-### Main Page
-
-The main page allows for the configured models to be selected for testing, system instructions, parameter changes, and much more!
-
-![main-page.png](./assets/main-page.png)
-
-### Analyzing Model Responses
-
-### One Model Response
-
-The example below shows a prompt being sent to a singular LLM. 
-
-![1-model-response.png](./assets//1-model-response.png)
-
-### Multi-Model Responses
-
-![multi-model-analysis.png](./assets/multi-model-analysis.png)
-
-![multi-model-analysis-2.png](./assets/multi-model-analysis-2.png)
-
-### Analyzing Model Responses
-
-When responses are received, analysis can be performed on the responses returned by another selected LLM.
-
-![response-analysis.png](./assets/response-analysis.png)
-
-![response-analysis-2.png](./assets/response-analysis-2.png)
-
-### Analytics
-
-Analytics post prompt input and LLM response, which can be viewed below the LLM response(s).
-
-![multi-model-analytics.png](./assets/multi-model-analytics.png)
-
 ## Installation
 
 ### Prerequisites
@@ -123,6 +87,42 @@ gcloud auth login application-default
    ```
 
 6. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+## UI Components
+
+### Main Page
+
+The main page allows for the configured models to be selected for testing, system instructions, parameter changes, and much more!
+
+![main-page.png](./assets/main-page.png)
+
+### Analyzing Model Responses
+
+### One Model Response
+
+The example below shows a prompt being sent to a singular LLM. 
+
+![1-model-response.png](./assets//1-model-response.png)
+
+### Multi-Model Responses
+
+![multi-model-analysis.png](./assets/multi-model-analysis.png)
+
+![multi-model-analysis-2.png](./assets/multi-model-analysis-2.png)
+
+### Analyzing Model Responses
+
+When responses are received, analysis can be performed on the responses returned by another selected LLM.
+
+![response-analysis.png](./assets/response-analysis.png)
+
+![response-analysis-2.png](./assets/response-analysis-2.png)
+
+### Analytics
+
+Analytics post prompt input and LLM response, which can be viewed below the LLM response(s).
+
+![multi-model-analytics.png](./assets/multi-model-analytics.png)
 
 ## Usage
 
