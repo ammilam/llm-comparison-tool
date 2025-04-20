@@ -6,9 +6,11 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
+import { MODEL_NAME_TO_ID } from "../config/models";
 
 export default function AnalysisPanel({
   responses,
+  responsesByPrompt,
   analyzerModels,
   onAnalyze,
   analysis,
@@ -17,7 +19,9 @@ export default function AnalysisPanel({
   selectedVersions,
   onVersionChange,
   onSaveReadme,
-  defaultAnalysisInstructions
+  defaultAnalysisInstructions,
+  selectedPromptIndex = 0,
+  setSelectedPromptIndex
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedAnalyzer, setSelectedAnalyzer] = useState(analyzerModels[0] || "ChatGPT");
@@ -38,15 +42,12 @@ export default function AnalysisPanel({
 
   // Helper function to get model ID from name
   const getModelIdFromName = (name) => {
-    if (name === "Claude Sonnet") return "claude";
-    if (name === "Gemini") return "gemini";
-    if (name === "ChatGPT") return "chatgpt";
-    return "chatgpt";
+    return MODEL_NAME_TO_ID[name] || "chatgpt"; // Default to chatgpt if not found
   };
 
   const handleAnalyze = () => {
     const instructions = useCustomInstructions ? customInstructions : defaultAnalysisInstructions;
-    onAnalyze(selectedAnalyzer, instructions);
+    onAnalyze(selectedPromptIndex, selectedAnalyzer, instructions);
     setIsOpen(true);
   };
 
@@ -91,6 +92,8 @@ export default function AnalysisPanel({
   const modelId = getModelIdFromName(selectedAnalyzer);
   const versions = modelConfigs[modelId]?.versions || [];
 
+  const hasMultiplePrompts = responsesByPrompt && responsesByPrompt.length > 1;
+
   return (
     <div className="card bg-base-100 shadow-sm overflow-hidden">
       <div
@@ -110,6 +113,20 @@ export default function AnalysisPanel({
           <div className="mb-4 flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row justify-between gap-3">
               <div className="flex flex-col sm:flex-row gap-2">
+                {/* Prompt selection dropdown - only show if multiple prompts exist */}
+                {hasMultiplePrompts && (
+                  <select
+                    value={selectedPromptIndex}
+                    onChange={(e) => setSelectedPromptIndex(parseInt(e.target.value))}
+                    className="select select-bordered select-sm"
+                  >
+                    {responsesByPrompt.map((_, index) => (
+                      <option key={index} value={index}>Analyze Prompt {index + 1}</option>
+                    ))}
+                    <option value={-1}>Analyze All Prompts</option>
+                  </select>
+                )}
+
                 <select
                   value={selectedAnalyzer}
                   onChange={(e) => setSelectedAnalyzer(e.target.value)}
@@ -121,7 +138,7 @@ export default function AnalysisPanel({
                 </select>
 
                 <select
-                  value={selectedVersions[selectedAnalyzer] || modelConfigs[modelId].defaultVersion}
+                  value={selectedVersions[selectedAnalyzer] || modelConfigs[modelId]?.defaultVersion}
                   onChange={(e) => onVersionChange(selectedAnalyzer, e.target.value)}
                   className="select select-bordered select-sm"
                 >
@@ -143,7 +160,7 @@ export default function AnalysisPanel({
 
                 <button
                   onClick={handleAnalyze}
-                  disabled={isAnalyzing || responses.length < 2}
+                  disabled={isAnalyzing || responses.length === 0}
                   className="btn btn-sm btn-primary"
                 >
                   {isAnalyzing ?
@@ -212,6 +229,15 @@ export default function AnalysisPanel({
 
           {analysis ? (
             <div className="prose prose-sm md:prose-base max-w-none space-y-6">
+              {/* Show which prompt was analyzed */}
+              {hasMultiplePrompts && analysis.promptIndex !== undefined && (
+                <div className="bg-base-200 p-2 rounded-md text-sm mb-4">
+                  {analysis.promptIndex >= 0 ?
+                    `Analysis for Prompt ${analysis.promptIndex + 1}` :
+                    "Analysis for All Prompts"}
+                </div>
+              )}
+
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeSlug]}
@@ -224,7 +250,6 @@ export default function AnalysisPanel({
                       <code className="bg-base-200 px-1 py-0.5 rounded" {...props} /> :
                       <code {...props} />
                   ),
-                  // Add specific styling for tables
                   table: ({ node, ...props }) => (
                     <div className="overflow-x-auto my-8">
                       <table className="table table-zebra w-full" {...props} />
@@ -239,7 +264,6 @@ export default function AnalysisPanel({
                   td: ({ node, ...props }) => (
                     <td className="border px-4 py-2" {...props} />
                   ),
-                  // Add spacing for headings
                   h1: ({ node, ...props }) => (
                     <h1 className="text-3xl font-bold mt-8 mb-4" {...props} />
                   ),
@@ -249,22 +273,18 @@ export default function AnalysisPanel({
                   h3: ({ node, ...props }) => (
                     <h3 className="text-xl font-bold mt-6 mb-2" {...props} />
                   ),
-                  // Add spacing for paragraphs
                   p: ({ node, ...props }) => (
                     <p className="my-4" {...props} />
                   ),
-                  // Add spacing for lists
                   ul: ({ node, ...props }) => (
                     <ul className="list-disc pl-6 my-4" {...props} />
                   ),
                   ol: ({ node, ...props }) => (
                     <ol className="list-decimal pl-6 my-4" {...props} />
                   ),
-                  // Add spacing for blockquotes
                   blockquote: ({ node, ...props }) => (
                     <blockquote className="border-l-4 border-primary/50 pl-4 italic my-6" {...props} />
                   ),
-                  // Add spacing for horizontal rules
                   hr: ({ node, ...props }) => (
                     <hr className="my-8 border-base-300" {...props} />
                   )
@@ -275,8 +295,8 @@ export default function AnalysisPanel({
             </div>
           ) : (
             <div className="text-center p-8 opacity-60">
-              {responses.length < 2 ? (
-                "Need at least two model responses to analyze."
+              {responses.length === 0 ? (
+                "Need at least one model response to analyze."
               ) : (
                 <>
                   <p>Click "Analyze Responses" to compare model outputs.</p>

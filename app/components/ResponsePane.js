@@ -7,7 +7,7 @@ import rehypeSanitize from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
-export default function ResponsePane({ response, isLoading, onSaveReadme }) {
+export default function ResponsePane({ response, isLoading, onSaveReadme, promptIndex }) {
   const [showRaw, setShowRaw] = useState(false);
 
   if (isLoading) {
@@ -35,7 +35,12 @@ export default function ResponsePane({ response, isLoading, onSaveReadme }) {
     <div className="card bg-base-100 shadow-sm overflow-hidden">
       <div className="card-body p-0">
         <div className="bg-base-200 p-3 flex items-center justify-between">
-          <h3 className="font-medium">{response.model}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium">{response.model}</h3>
+            {promptIndex !== undefined && (
+              <div className="badge badge-sm">{`Prompt ${promptIndex + 1}`}</div>
+            )}
+          </div>
           <div className="flex gap-2">
             {response && !response.error && (
               <button
@@ -62,20 +67,19 @@ export default function ResponsePane({ response, isLoading, onSaveReadme }) {
           ) : (
             <div className="prose prose-sm md:prose-base max-w-none">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]} // Add this for table support
+                remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeSlug]}
                 components={{
                   pre: ({ node, ...props }) => (
-                    <pre className="bg-base-200 p-4 rounded-md overflow-x-auto" {...props} />
+                    <pre className="bg-base-200 p-4 rounded-md overflow-x-auto my-6" {...props} />
                   ),
                   code: ({ node, inline, ...props }) => (
                     inline ?
                       <code className="bg-base-200 px-1 py-0.5 rounded" {...props} /> :
                       <code {...props} />
                   ),
-                  // Add specific styling for tables
                   table: ({ node, ...props }) => (
-                    <div className="overflow-x-auto my-4">
+                    <div className="overflow-x-auto my-8">
                       <table className="table table-zebra w-full" {...props} />
                     </div>
                   ),
@@ -87,6 +91,30 @@ export default function ResponsePane({ response, isLoading, onSaveReadme }) {
                   ),
                   td: ({ node, ...props }) => (
                     <td className="border px-4 py-2" {...props} />
+                  ),
+                  h1: ({ node, ...props }) => (
+                    <h1 className="text-3xl font-bold mt-8 mb-4" {...props} />
+                  ),
+                  h2: ({ node, ...props }) => (
+                    <h2 className="text-2xl font-bold mt-8 mb-3" {...props} />
+                  ),
+                  h3: ({ node, ...props }) => (
+                    <h3 className="text-xl font-bold mt-6 mb-2" {...props} />
+                  ),
+                  p: ({ node, ...props }) => (
+                    <p className="my-4" {...props} />
+                  ),
+                  ul: ({ node, ...props }) => (
+                    <ul className="list-disc pl-6 my-4" {...props} />
+                  ),
+                  ol: ({ node, ...props }) => (
+                    <ol className="list-decimal pl-6 my-4" {...props} />
+                  ),
+                  blockquote: ({ node, ...props }) => (
+                    <blockquote className="border-l-4 border-primary/50 pl-4 italic my-6" {...props} />
+                  ),
+                  hr: ({ node, ...props }) => (
+                    <hr className="my-8 border-base-300" {...props} />
                   )
                 }}
               >
