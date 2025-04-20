@@ -136,26 +136,119 @@ The tool provides a RESTful API for programmatic access to all its features.The 
 ## Endpoint
 
 ```
+GET /api/compare
 POST /api/compare
 ```
 
-## Request Format
+## GET Endpoint
+
+The GET endpoint returns information about the API, including supported models, available versions, and example requests.
+
+Example:
+```bash
+curl http://localhost:3000/api/compare
+```
+
+This returns comprehensive API documentation and configuration details.
+
+## POST Endpoint
+
+The POST endpoint processes LLM comparison requests.
+
+### Request Format
 
 Send a POST request with a JSON body containing the following parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `prompt` | String | Yes | The text prompt to send to the language models |
-| `system_instructions` | String | No | Optional system instructions to guide model behavior |
-| models | Array | Yes | Array of model IDs to query (e.g., `["claude", "gemini", "chatgpt"]`) |
-| `temperature` | Number | No | Temperature parameter for response generation (0.0-1.0). Default: 0.7 |
-| `max_tokens` | Number | No | Maximum tokens to generate for each response. Default: 2048 |
+| `prompt` | String | Yes | The prompt to send to the language models |
+| `system_instructions` | String | No | System instructions to guide model behavior |
+| models | Array | No* | Array of models to query. Supported: "claude", "gemini", "chatgpt" |
+| `model_versions` | Object | No* | Specific model versions to use, e.g. `{"claude": "claude-3-5-sonnet-20240620"}` |
+| `temperature` | Number | No | Temperature parameter (0.0-1.0). Default: 0.7 |
+| `max_tokens` | Number | No | Maximum tokens to generate. Default: 2048 |
 | `analyze_responses` | Boolean | No | Whether to analyze the responses. Default: false |
-| `analyze_responses_model` | String | No | Model ID to use for analysis. Default: "chatgpt" |
-| `metrics` | Boolean | No | Whether to return performance metrics. Default: false |
-| `model_versions` | Object | No | Specific model versions to use, keyed by model ID |
+| `analyze_responses_model` | String | No | Model to use for analysis. Default: "chatgpt" |
+| `analyze_responses_model_version` | String | No | Specific version of the model to use for analysis |
+| `metrics` | Boolean | No | Whether to return metrics about the responses. Default: false |
 
-## Supported Models
+*Note: Either models or `model_versions` must be provided.
+
+### Specifying Models and Versions
+
+You can specify models in multiple ways:
+
+1. **Using the models array only**:
+   ```json
+   {
+     "prompt": "Explain quantum computing",
+     "models": ["claude", "gemini", "chatgpt"]
+   }
+   ```
+   This will use the default version for each model.
+
+2. **Using the `model_versions` object only**:
+   ```json
+   {
+     "prompt": "Explain quantum computing",
+     "model_versions": {
+       "claude": "claude-3-opus-20240229",
+       "chatgpt": "gpt-4-turbo"
+     }
+   }
+   ```
+   This will process only the models specified in the object with the specified versions.
+
+3. **Using both models and `model_versions`**:
+   ```json
+   {
+     "prompt": "Explain quantum computing",
+     "models": ["claude", "gemini", "chatgpt"],
+     "model_versions": {
+       "claude": "claude-3-opus-20240229"
+     }
+   }
+   ```
+   This will process all models in the array, using custom versions when specified and default versions otherwise.
+
+### Specifying the Analysis Model
+
+When `analyze_responses` is `true`, you can specify which model should perform the analysis:
+
+1. **Using the default model**:
+   ```json
+   {
+     "prompt": "Explain quantum computing",
+     "models": ["claude", "gemini"],
+     "analyze_responses": true
+   }
+   ```
+   This uses the default analysis model (chatgpt) with its default version.
+
+2. **Specifying the analysis model**:
+   ```json
+   {
+     "prompt": "Explain quantum computing",
+     "models": ["claude", "gemini"],
+     "analyze_responses": true,
+     "analyze_responses_model": "claude"
+   }
+   ```
+   This uses Claude with its default version for analysis.
+
+3. **Specifying both model and version for analysis**:
+   ```json
+   {
+     "prompt": "Explain quantum computing",
+     "models": ["chatgpt", "gemini"],
+     "analyze_responses": true,
+     "analyze_responses_model": "claude",
+     "analyze_responses_model_version": "claude-3-opus-20240229"
+   }
+   ```
+   This uses the specific Claude version for analysis.
+
+### Supported Models
 
 The API supports the following model IDs:
 
@@ -165,23 +258,23 @@ The API supports the following model IDs:
 | `gemini` | Google | gemini-2.0-flash-001 |
 | `chatgpt` | OpenAI | gpt-4o |
 
-## Model Versions
+### Model Versions
 
 Each model supports multiple versions that can be specified in the `model_versions` parameter:
 
-### Claude Versions
+#### Claude Versions
 - `claude-3-7-sonnet-20250219` (default)
 - `claude-3-5-sonnet-20240620`
 - `claude-3-opus-20240229`
 - `claude-3-haiku-20240307`
 
-### Gemini Versions
+#### Gemini Versions
 - `gemini-2.0-flash-001` (default)
 - `gemini-2.0-pro-001`
 - `gemini-1.5-flash-001`
 - `gemini-1.5-pro-001`
 
-### ChatGPT Versions
+#### ChatGPT Versions
 - `gpt-4o` (default)
 - `gpt-4-turbo`
 - `gpt-4`
@@ -206,32 +299,17 @@ curl -X POST http://localhost:3000/api/compare \
 curl -X POST http://localhost:3000/api/compare \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "Explain quantum computing in simple terms.",
+    "prompt": "Explain quantum computing in simple terms",
     "system_instructions": "You are a helpful assistant that explains complex topics simply.",
-    "models": ["claude", "gemini", "chatgpt"],
     "temperature": 0.5,
-    "max_tokens": 1000,
+    "max_tokens": 500,
     "analyze_responses": true,
-    "analyze_responses_model": "chatgpt",
+    "analyze_responses_model_version": "gpt-4o",
     "metrics": true,
-    "model_versions": {
-      "claude": "claude-3-5-sonnet-20240620",
-      "gemini": "gemini-2.0-flash-001",
-      "chatgpt": "gpt-4o"
+    model_versions: {
+      "chatgpt": "gpt-4o",
+      "claude": "claude-3-7-sonnet-20250219",
     }
-  }'
-```
-
-### Model Analysis
-
-```bash
-curl -X POST http://localhost:3000/api/compare \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "What are the ethical concerns of AI?",
-    "models": ["claude", "chatgpt"],
-    "analyze_responses": true,
-    "analyze_responses_model": "gemini"
   }'
 ```
 
@@ -392,7 +470,6 @@ The API uses the same authentication methods as the main application:
 Rate limits are determined by your subscription plan with each provider.
 
 
-
 ## Extending with New Models
 
 The application is designed to be easily extensible. To add a new model:
@@ -400,6 +477,7 @@ The application is designed to be easily extensible. To add a new model:
 1. Create a new server function in `app/lib/models.js`
 2. Add model configuration in the `MODEL_CONFIGS` object in `app/page.js`
 3. Add the model to the `AVAILABLE_MODELS` array in `app/page.js`
+4. Update model config handlers in `app/config/models.js`
 
 ## Technologies Used
 
