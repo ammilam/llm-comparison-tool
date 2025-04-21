@@ -124,6 +124,13 @@ Analytics post prompt input and LLM response, which can be viewed below the LLM 
 
 ![multi-model-analytics.png](./assets/multi-model-analytics.png)
 
+#### Sentiment Analysis
+
+The LLM Comparison tool provides sentiment analysis of the responses using the Google Cloud Natural Language API. The sentiment score ranges from -1.0 (very negative) to 1.0 (very positive), with 0 being neutral.
+The magnitude indicates the strength of the sentiment, with higher values indicating stronger sentiment. The analysis can be performed using either the built-in keyword-based scoring or the Google Cloud Natural Language API.
+
+![sentiment.png](./assets/sentiment.png)
+
 ## Usage
 
 1. **Select Models**: Choose which models to test from the model selector panel
