@@ -16,7 +16,7 @@ import { DEFAULT_ANALYSIS_INSTRUCTIONS } from "./utils/system-instructions";
 import { saveAsReadme } from "./utils/readme";
 import { syncCredentials } from "./utils/credentials";
 import InfoBubble from './components/InfoBubble';
-import ResponseAnalytics from "./components/ResponseAnalytics";
+import PromptResponseAnalytics from "./components/PromptResponseAnalytics";
 import { 
   MODEL_CONFIGS, 
   MODEL_PROVIDERS, 
@@ -76,7 +76,6 @@ export default function Home() {
   // Responses state
   const [responsesByPrompt, setResponsesByPrompt] = useState([]);
   const [responses, setResponses] = useState([]);
-  const [currentProcessingPrompt, setCurrentProcessingPrompt] = useState(null);
 
   // Apply theme effect - keeping your existing code
   useEffect(() => {
@@ -156,8 +155,10 @@ export default function Home() {
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2048);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState({})
   const [analysis, setAnalysis] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [currentProcessingPrompt, setCurrentProcessingPrompt] = useState(null);
   const [selectedPromptForAnalysis, setSelectedPromptForAnalysis] = useState(0);
 
   // Updated submit handler for multiple prompts
@@ -169,7 +170,18 @@ export default function Home() {
     setResponses([]);
     setAnalysis(null);
 
+    const initialLoadingStatus = {};
     const activePrompts = prompts.filter(prompt => prompt.text.trim());
+
+    activePrompts.forEach((_, promptIndex) => {
+      initialLoadingStatus[promptIndex] = {};
+      selectedModels.forEach(model => {
+        initialLoadingStatus[promptIndex][model.id] = true;
+      });
+    });
+
+    setLoadingStatus(initialLoadingStatus);
+
     const newResponsesByPrompt = [];
     const allResponses = [];
 
@@ -190,8 +202,38 @@ export default function Home() {
           temperature,
           maxTokens,
           selectedVersions[model.id]
-        )
-      );
+        ).then(result => {
+          setLoadingStatus(prev => ({
+            ...prev,
+            [i]: {
+              ...prev[i],
+              [model.id]: false
+            }
+          }));
+          return {
+            ...result,
+            model: model.name,
+            version: selectedVersions[model.id],
+            promptIndex: i,
+            promptText: promptObj.text
+          };
+        }).catch(error => {
+          setLoadingStatus(prev => ({
+            ...prev,
+            [i]: {
+              ...prev[i],
+              [model.id]: false
+            }
+          }));
+          return {
+            error: error.message,
+            model: model.name,
+            version: selectedVersions[model.id],
+            promptIndex: i,
+            promptText: promptObj.text
+          };
+        })
+      )
 
       try {
         const results = await Promise.all(modelPromises);
@@ -426,40 +468,69 @@ This tool now supports up to 5 sequential prompts:
             )}
 
             {/* Display responses grouped by prompt */}
-            {!isLoading && responsesByPrompt.length > 0 && (
-              <div className="space-y-8">
-                {responsesByPrompt.map((promptResponses, promptIndex) => (
-                  <div key={promptIndex} className="card bg-base-100 shadow-sm">
-                    <div className="card-body">
-                      <h3 className="font-medium text-lg border-b pb-2 mb-4">
-                        Prompt {promptIndex + 1} Responses
-                      </h3>
-                      <div className="text-sm opacity-70 mb-4 line-clamp-2">
-                        <strong>Prompt:</strong> {promptResponses[0]?.promptText || ''}
-                      </div>
-                      <div className="grid grid-cols-1 gap-6">
-                        {promptResponses.map((response, responseIndex) => (
-                          <ResponsePane
-                            key={`${promptIndex}-${responseIndex}`}
-                            response={response}
-                            isLoading={false}
-                            onSaveReadme={handleSaveReadme}
-                            promptIndex={promptIndex}
-                          />
-                        ))}
-                      </div>
-                    </div>
+            {responsesByPrompt.length > 0 && (
+  <div className="space-y-8">
+    {responsesByPrompt.map((promptResponses, promptIndex) => (
+      <div key={promptIndex} className="card bg-base-100 shadow-sm">
+        <div className="card-body">
+          <h3 className="font-medium text-lg border-b pb-2 mb-4">
+            Prompt {promptIndex + 1} Responses
+          </h3>
+          <div className="text-sm opacity-70 mb-4 line-clamp-2">
+            <strong>Prompt:</strong> {promptResponses[0]?.promptText || ''}
+          </div>
+          
+          {/* Show individual loading indicators */}
+          {isLoading && loadingStatus[promptIndex] && (
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {selectedModels.map(model => (
+                <div 
+                  key={`loading-${promptIndex}-${model.id}`} 
+                  className={`card ${loadingStatus[promptIndex][model.id] ? 'bg-base-200' : 'bg-base-100'} p-4`}
+                >
+                  <div className="flex items-center">
+                    {loadingStatus[promptIndex][model.id] ? (
+                      <>
+                        <div className="loading loading-spinner loading-sm mr-2"></div>
+                        <span>Loading {model.name}...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-success mr-2">✓</span>
+                        <span>{model.name} response received</span>
+                      </>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-
-            {responses.length > 0 && (
-              <ResponseAnalytics
-                responses={responses}
-                responsesByPrompt={responsesByPrompt}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Display responses for this prompt */}
+          <div className="grid grid-cols-1 gap-6">
+            {promptResponses.map((response, responseIndex) => (
+              <ResponsePane
+                key={`${promptIndex}-${responseIndex}`}
+                response={response}
+                isLoading={false}
+                onSaveReadme={handleSaveReadme}
+                promptIndex={promptIndex}
               />
-            )}
+            ))}
+          </div>
+          
+          {/* Per-prompt analytics */}
+          {promptResponses.length > 0 && (
+            <div className="mt-6">
+              <div className="divider text-sm opacity-70">Prompt {promptIndex + 1} Analytics</div>
+              <PromptResponseAnalytics responses={promptResponses} />
+            </div>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+)}
 
             {/* Empty state */}
             {!isLoading && selectedModels.length > 0 && responsesByPrompt.length === 0 && (

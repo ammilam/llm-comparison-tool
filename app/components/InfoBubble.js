@@ -38,7 +38,7 @@ export default function InfoBubble({ title, content }) {
             <div className="divider my-1"></div>
             <div className="text-sm overflow-y-auto max-h-[70vh] prose prose-sm">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]} // Add this for table support
+                remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeSlug]}
                 components={{
                   pre: ({ node, ...props }) => (
